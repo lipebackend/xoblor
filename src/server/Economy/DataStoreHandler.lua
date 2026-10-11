@@ -175,10 +175,10 @@ game:BindToClose(function()
 		end)
 	end
 	local deadline = os.clock() + CLOSE_TIMEOUT
-	while pending > 0 and os.clock() < deadline do
+	while (pending > 0 or next(saving) ~= nil) and os.clock() < deadline do
 		task.wait()
 	end
-	if pending > 0 then
+	if pending > 0 or next(saving) ~= nil then
 		warn(("[DataStore] BindToClose terminou com %d saves pendentes"):format(pending))
 	end
 end)

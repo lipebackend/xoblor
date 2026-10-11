@@ -79,7 +79,6 @@ function RemoteUtil.BindFunction(name, interval, burst, handler)
 	local rateOk = RemoteUtil.Limiter(interval, burst)
 	RemoteUtil.Get(name, "RemoteFunction").OnServerInvoke = function(player, ...)
 		if not rateOk(player) then
-			RemoteUtil.Flag(player, name .. ": rate limit")
 			return false, "RateLimited"
 		end
 		local ok, a, b = pcall(handler, player, ...)
