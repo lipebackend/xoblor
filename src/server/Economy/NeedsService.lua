@@ -83,12 +83,13 @@ local function notify(player, extra)
 	applyEffect(player, extra)
 end
 
+-- Retorna ok, hunger, energy; ou false, "NotLoaded" se o perfil ainda não carregou.
 function NeedsService.GetNeeds(player)
 	local extra = getExtra(player)
 	if not extra then
-		return MAX_NEED, MAX_NEED
+		return false, "NotLoaded"
 	end
-	return extra.Hunger, extra.Energy
+	return true, extra.Hunger, extra.Energy
 end
 
 local function add(field, player, n)
