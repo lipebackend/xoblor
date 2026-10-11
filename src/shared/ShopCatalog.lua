@@ -2,9 +2,16 @@
 -- Category: Comida | Roupa | Veiculo | Casa | GamePass
 local Catalog = {
 	Items = {
-		acai = { Id = "acai", Name = "Açaí", Price = 12, Category = "Comida", Energy = 30 },
-		pastel = { Id = "pastel", Name = "Pastel de Feira", Price = 8, Category = "Comida", Energy = 20 },
-		mate_gelado = { Id = "mate_gelado", Name = "Mate Gelado", Price = 5, Category = "Comida", Energy = 10 },
+		acai = { Id = "acai", Name = "Açaí", Price = 12, Category = "Comida", Hunger = 25, Energy = 30 },
+		pastel = { Id = "pastel", Name = "Pastel de Feira", Price = 8, Category = "Comida", Hunger = 35, Energy = 10 },
+		mate_gelado = {
+			Id = "mate_gelado",
+			Name = "Mate Gelado",
+			Price = 5,
+			Category = "Comida",
+			Hunger = 5,
+			Energy = 20,
+		},
 		uniforme_policia = {
 			Id = "uniforme_policia",
 			Name = "Uniforme de Policial",

@@ -8,14 +8,23 @@ local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
 local Catalog = require(RS.Shared.ShopCatalog)
 
-local energyChanged = RemoteUtil.Get("EnergyChanged", "RemoteEvent")
-local MAX_ENERGY = 100
+-- NeedsService (Programador 4) é opcional até entrar na main
+local needsModule = script.Parent:FindFirstChild("NeedsService")
+local Needs = needsModule and require(needsModule)
 
 local function grant(player, item, extra)
 	if item.Category == "Comida" then
-		-- NeedsService (fase 2) vai ler Extra.Energy
-		extra.Energy = math.min((tonumber(extra.Energy) or MAX_ENERGY) + (item.Energy or 0), MAX_ENERGY)
-		energyChanged:FireClient(player, extra.Energy)
+		if Needs then
+			if item.Hunger then
+				Needs.AddHunger(player, item.Hunger)
+			end
+			if item.Energy then
+				Needs.AddEnergy(player, item.Energy)
+			end
+		else
+			extra.Energy = math.min((tonumber(extra.Energy) or 100) + (item.Energy or 0), 100)
+			extra.Hunger = math.min((tonumber(extra.Hunger) or 100) + (item.Hunger or 0), 100)
+		end
 	elseif item.Category == "Roupa" then
 		local outfit = ServerStorage:FindFirstChild("Outfits") and ServerStorage.Outfits:FindFirstChild(item.Id)
 		local char = player.Character
