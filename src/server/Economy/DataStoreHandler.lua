@@ -92,9 +92,26 @@ local function save(player, release)
 	return res
 end
 
+-- libera a trava desta sessão sem mexer nos dados (jogador saiu antes do load terminar)
+local function releaseLock(player)
+	retry(function()
+		store:UpdateAsync(key(player), function(old)
+			if not old or old.SessionJobId ~= game.JobId then
+				return nil
+			end
+			old.SessionJobId = nil
+			old.SessionTime = nil
+			return old
+		end)
+	end)
+end
+
 local function load(player)
 	local data
 	for _ = 1, LOCK_WAIT_TRIES do
+		if not player.Parent then
+			return -- saiu enquanto esperava a trava: nada foi travado por este servidor
+		end
 		local locked = false
 		local ok = retry(function()
 			store:UpdateAsync(key(player), function(old)
@@ -124,14 +141,20 @@ local function load(player)
 		data = nil
 		task.wait(5)
 	end
+	if data and not player.Parent then
+		-- saiu durante o UpdateAsync: o PlayerRemoving já rodou sem dados, então solta a trava aqui
+		releaseLock(player)
+		return
+	end
 	if not data then
+		if not player.Parent then
+			return
+		end
 		player:Kick("Seus dados ainda estão em uso em outro servidor. Tente de novo em instantes.")
 		return
 	end
 	extraData[player] = type(data.Extra) == "table" and data.Extra or {}
-	if player.Parent then
-		Economy.Init(player, data.Coins)
-	end
+	Economy.Init(player, data.Coins)
 end
 
 function Handler.GetExtra(player)
