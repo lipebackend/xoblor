@@ -8,8 +8,8 @@ local RemoteUtil = require(script.Parent.RemoteUtil)
 local MAX_NEED = 100
 local HUNGER_DECAY_INTERVAL = 30 -- segundos para perder 1 de fome
 local ENERGY_DECAY_INTERVAL = 45 -- segundos para perder 1 de energia
-local NORMAL_WALKSPEED = 16
-local EXHAUSTED_WALKSPEED = 10 -- aplicado com fome ou energia em 0
+local DEFAULT_WALKSPEED = 16 -- usado se não houver atributo BaseWalkSpeed (Humanoid, depois Player)
+local EXHAUSTED_FACTOR = 0.6 -- fração da velocidade base com fome ou energia em 0
 
 local NeedsService = {}
 local needsChanged = RemoteUtil.Get("NeedsChanged", "RemoteEvent")
@@ -27,6 +27,19 @@ local function validDelta(n)
 	return type(n) == "number" and n == n and n % 1 == 0 and math.abs(n) <= 1e6
 end
 
+local penalized = {} -- [player] = WalkSpeed que nós aplicamos
+
+local function baseSpeed(player, hum)
+	local v = hum:GetAttribute("BaseWalkSpeed")
+	if type(v) ~= "number" then
+		v = player:GetAttribute("BaseWalkSpeed")
+	end
+	if type(v) ~= "number" or v ~= v or v <= 0 then
+		v = DEFAULT_WALKSPEED
+	end
+	return v
+end
+
 local function applyEffect(player, extra)
 	local char = player.Character
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
@@ -34,10 +47,20 @@ local function applyEffect(player, extra)
 		return
 	end
 	local exhausted = extra.Hunger <= 0 or extra.Energy <= 0
-	if exhausted and hum.WalkSpeed > EXHAUSTED_WALKSPEED then
-		hum.WalkSpeed = EXHAUSTED_WALKSPEED
-	elseif not exhausted and hum.WalkSpeed == EXHAUSTED_WALKSPEED then
-		hum.WalkSpeed = NORMAL_WALKSPEED
+	local base = baseSpeed(player, hum)
+	if exhausted then
+		local slow = base * EXHAUSTED_FACTOR
+		-- só reduz; não sobrescreve quem já deixou o jogador mais lento
+		if hum.WalkSpeed > slow then
+			hum.WalkSpeed = slow
+			penalized[player] = slow
+		end
+	elseif penalized[player] then
+		-- só restaura se ninguém mexeu na velocidade depois de nós
+		if math.abs(hum.WalkSpeed - penalized[player]) < 0.01 then -- WalkSpeed é float32
+			hum.WalkSpeed = base
+		end
+		penalized[player] = nil
 	end
 end
 
@@ -106,6 +129,7 @@ local function watch(player)
 	end)
 	player.CharacterAdded:Connect(function()
 		local extra = getExtra(player)
+		penalized[player] = nil -- personagem novo, velocidade original
 		if extra then
 			task.defer(applyEffect, player, extra)
 		end
@@ -118,6 +142,7 @@ for _, p in Players:GetPlayers() do
 end
 Players.PlayerRemoving:Connect(function(p)
 	announced[p] = nil
+	penalized[p] = nil
 end)
 
 -- Decaimento.
