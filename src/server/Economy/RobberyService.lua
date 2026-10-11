@@ -16,11 +16,9 @@ local MAX_ROB = 2000
 local POLICE_TEAM = "Polícia"
 local POLICE_JOB = "policial"
 
-local robAttempt = RemoteUtil.Get("RobAttempt", "RemoteFunction")
 local robbedEvent = RemoteUtil.Get("Robbed", "RemoteEvent")
 local resultEvent = RemoteUtil.Get("RobberyResult", "RemoteEvent")
 local stateEvent = RemoteUtil.Get("RobberyState", "RemoteEvent")
-local rateOk = RemoteUtil.Limiter(0.5)
 local busy = {}
 
 local function stateOf(player)
@@ -123,28 +121,28 @@ function RobberyService.Rob(robber, target)
 	return true, amount
 end
 
-robAttempt.OnServerInvoke = function(player, targetUserId)
-	if not rateOk(player) then
-		return false, "RateLimited"
-	end
-	if type(targetUserId) ~= "number" or targetUserId ~= targetUserId or targetUserId % 1 ~= 0 then
-		warn(("[Robbery] payload suspeito de %d: %s"):format(player.UserId, tostring(targetUserId)))
+-- RobAttempt: 1 chamada a cada 0,5s. Payload inválido gera Flag (via BindFunction).
+RemoteUtil.BindFunction("RobAttempt", 0.5, 1, function(player, targetUserId)
+	if not RemoteUtil.IsInt(targetUserId, 1) then
 		return false, "Invalid"
 	end
 	local target = Players:GetPlayerByUserId(targetUserId)
 	if not target or target == player then
-		warn(("[Robbery] alvo inválido de %d: %d"):format(player.UserId, targetUserId))
 		return false, "Invalid"
 	end
 	if busy[player] then
 		return false, "RateLimited"
 	end
 	busy[player] = true
-	local ok, res = RobberyService.Rob(player, target)
+	local ran, ok, res = pcall(RobberyService.Rob, player, target)
 	busy[player] = nil
+	if not ran then
+		warn(("[Robbery] Rob falhou para %d: %s"):format(player.UserId, tostring(ok)))
+		ok, res = false, "ServerError"
+	end
 	resultEvent:FireClient(player, ok, res, targetUserId)
 	return ok, res
-end
+end)
 
 -- estado inicial ao carregar (e jogadores já no servidor)
 Economy.BalanceChanged:Connect(function(player, _, reason)
