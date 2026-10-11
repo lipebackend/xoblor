@@ -1,0 +1,43 @@
+# Release automático: ao enviar uma tag v* (ex.: v0.1.0), gera o place e cria a GitHub Release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publicar release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Instalar ferramentas (Rokit)
+        uses: CompeyDev/setup-rokit@v0.2.1
+        with:
+          cache: "true"
+
+      - name: Verificar formatação e lint
+        run: |
+          stylua --check src
+          selene src
+
+      - name: Gerar xoblor.rbxl
+        run: rojo build default.project.json -o xoblor.rbxl
+
+      - name: Criar GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: xoblor.rbxl
+          generate_release_notes: true
+          fail_on_unmatched_files: true
