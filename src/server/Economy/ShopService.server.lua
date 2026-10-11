@@ -6,24 +6,16 @@ local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local NeedsService = require(script.Parent.NeedsService)
 local Catalog = require(RS.Shared.ShopCatalog)
 
--- NeedsService (Programador 4) é opcional até entrar na main
-local needsModule = script.Parent:FindFirstChild("NeedsService")
-local Needs = needsModule and require(needsModule)
-
-local function grant(player, item, extra)
+local function grant(player, item, _extra)
 	if item.Category == "Comida" then
-		if Needs then
-			if item.Hunger then
-				Needs.AddHunger(player, item.Hunger)
-			end
-			if item.Energy then
-				Needs.AddEnergy(player, item.Energy)
-			end
-		else
-			extra.Energy = math.min((tonumber(extra.Energy) or 100) + (item.Energy or 0), 100)
-			extra.Hunger = math.min((tonumber(extra.Hunger) or 100) + (item.Hunger or 0), 100)
+		if item.Hunger then
+			NeedsService.AddHunger(player, item.Hunger)
+		end
+		if item.Energy then
+			NeedsService.AddEnergy(player, item.Energy)
 		end
 	elseif item.Category == "Roupa" then
 		local outfit = ServerStorage:FindFirstChild("Outfits") and ServerStorage.Outfits:FindFirstChild(item.Id)
