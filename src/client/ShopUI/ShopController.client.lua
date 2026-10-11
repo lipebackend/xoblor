@@ -321,7 +321,7 @@ local function renderPhone()
 				return
 			end
 			local okR, r = remote("RobAttempt"):InvokeServer(t.UserId)
-			if not okR then
+			if not okR and (r == "RateLimited" or r == "Invalid") then
 				flash(b, err(r), "Assaltar")
 			end -- sucesso chega via RobberyResult
 		end)
