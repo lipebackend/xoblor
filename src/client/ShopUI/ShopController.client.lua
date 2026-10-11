@@ -55,6 +55,7 @@ local ERR = {
 	PixLimit = "Limite do Pix",
 	Occupied = "Ocupada",
 	NoSpawnNearby = "Vá a um estacionamento",
+	ServerError = "Erro, tente de novo",
 }
 local function err(res)
 	return ERR[res] or tostring(res)
@@ -321,7 +322,7 @@ local function renderPhone()
 				return
 			end
 			local okR, r = remote("RobAttempt"):InvokeServer(t.UserId)
-			if not okR and (r == "RateLimited" or r == "Invalid") then
+			if not okR and (r == "RateLimited" or r == "Invalid" or r == "ServerError") then
 				flash(b, err(r), "Assaltar")
 			end -- sucesso chega via RobberyResult
 		end)
