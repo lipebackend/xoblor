@@ -13,7 +13,7 @@ local MAX_BANK = 1e12
 local bankChanged = RemoteUtil.Get("BankChanged", "RemoteEvent")
 
 local function validAmount(n)
-	return type(n) == "number" and n == n and n > 0 and n % 1 == 0 and n <= MAX_BANK
+	return RemoteUtil.IsInt(n, 1, MAX_BANK)
 end
 
 local function extraOf(player)
