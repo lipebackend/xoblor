@@ -9,7 +9,6 @@ local RemoteUtil = require(script.Parent.RemoteUtil)
 local Catalog = require(RS.Shared.ShopCatalog)
 
 local HouseService = {}
-local rateOk = RemoteUtil.Limiter(0.5)
 local housesChanged = RemoteUtil.Get("HousesChanged", "RemoteEvent")
 local occupant = {} -- [houseId] = player (dono/inquilino atual no servidor)
 local guests = {} -- [houseId] = { [userId] = true }
@@ -126,6 +125,7 @@ function HouseService.Invite(p, id, userId, allow)
 	if occupant[id] ~= p then
 		return false, "NotOwner"
 	end
+	guests[id] = guests[id] or {}
 	guests[id][userId] = allow and true or nil
 	return true
 end
@@ -210,11 +210,18 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- Remotes
-RemoteUtil.Get("HouseAction", "RemoteFunction").OnServerInvoke = function(p, action, id, arg)
-	if not rateOk(p) then
-		return false, "RateLimited"
+RemoteUtil.BindFunction("HouseAction", 0.5, 3, function(p, action, id, arg)
+	if type(action) ~= "string" then
+		return false, "Invalid"
 	end
-	if type(action) ~= "string" or type(id) ~= "string" then
+	if action == "list" then
+		local e = extraOf(p)
+		if not e then
+			return false, "NotLoaded"
+		end
+		return true, snapshot(e)
+	end
+	if not RemoteUtil.IsId(id) then
 		return false, "Invalid"
 	end
 	if action == "rent" then
@@ -222,18 +229,12 @@ RemoteUtil.Get("HouseAction", "RemoteFunction").OnServerInvoke = function(p, act
 	elseif action == "buy" then
 		return HouseService.Buy(p, id)
 	elseif action == "invite" or action == "uninvite" then
-		if type(arg) ~= "number" then
+		if not RemoteUtil.IsInt(arg, 1) or arg == p.UserId then
 			return false, "Invalid"
 		end
 		return HouseService.Invite(p, id, arg, action == "invite")
-	elseif action == "list" then
-		local e = extraOf(p)
-		if not e then
-			return false, "NotLoaded"
-		end
-		return true, snapshot(e)
 	end
 	return false, "Invalid"
-end
+end)
 
 return HouseService

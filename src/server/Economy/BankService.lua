@@ -11,7 +11,6 @@ local PIX_WINDOW = 3600
 local MAX_BANK = 1e12
 
 local bankChanged = RemoteUtil.Get("BankChanged", "RemoteEvent")
-local rateOk = RemoteUtil.Limiter(0.5)
 
 local function validAmount(n)
 	return type(n) == "number" and n == n and n > 0 and n % 1 == 0 and n <= MAX_BANK
@@ -25,8 +24,11 @@ local function extraOf(player)
 	if not extra then
 		return nil
 	end
-	extra.Bank = tonumber(extra.Bank) or 0
-	extra.PixLog = extra.PixLog or {}
+	local bank = tonumber(extra.Bank) or 0
+	extra.Bank = (bank == bank and bank >= 0) and math.floor(bank) or 0
+	if type(extra.PixLog) ~= "table" then
+		extra.PixLog = {}
+	end
 	return extra
 end
 
@@ -107,43 +109,38 @@ function BankService.Pix(from, to, amount)
 	if pixUsed(extra, now) + amount > PIX_LIMIT then
 		return false, "PixLimit"
 	end
+	local entry = { t = now, v = amount }
+	table.insert(extra.PixLog, entry) -- reserva o limite antes de transferir
 	local ok, err = Economy.Transfer(from, to, amount)
 	if not ok then
+		table.remove(extra.PixLog, table.find(extra.PixLog, entry))
 		return false, err
 	end
-	table.insert(extra.PixLog, { t = now, v = amount })
 	return true, err
 end
 
--- Remotes (caixa eletrônico e celular)
-RemoteUtil.Get("BankDeposit", "RemoteFunction").OnServerInvoke = function(player, amount)
-	if not rateOk(player) then
-		return false, "RateLimited"
+-- Remotes (caixa eletrônico e celular): 2 chamadas seguidas, 1 a cada 0,5s
+RemoteUtil.BindFunction("BankDeposit", 0.5, 2, function(player, amount)
+	if not validAmount(amount) then
+		return false, "Invalid"
 	end
 	return BankService.Deposit(player, amount)
-end
+end)
 
-RemoteUtil.Get("BankWithdraw", "RemoteFunction").OnServerInvoke = function(player, amount)
-	if not rateOk(player) then
-		return false, "RateLimited"
+RemoteUtil.BindFunction("BankWithdraw", 0.5, 2, function(player, amount)
+	if not validAmount(amount) then
+		return false, "Invalid"
 	end
 	return BankService.Withdraw(player, amount)
-end
+end)
 
-RemoteUtil.Get("BankGet", "RemoteFunction").OnServerInvoke = function(player)
-	if not rateOk(player) then
-		return false, "RateLimited"
-	end
+RemoteUtil.BindFunction("BankGet", 0.5, 3, function(player)
 	return BankService.GetBank(player)
-end
+end)
 
-RemoteUtil.Get("Pix", "RemoteFunction").OnServerInvoke = function(player, targetUserId, amount)
-	if not rateOk(player) then
-		return false, "RateLimited"
-	end
-	if type(targetUserId) ~= "number" then
-		warn(("[Bank] payload suspeito de %d"):format(player.UserId))
-		return false, "InvalidTarget"
+RemoteUtil.BindFunction("Pix", 1, 2, function(player, targetUserId, amount)
+	if not RemoteUtil.IsInt(targetUserId, 1) or not validAmount(amount) then
+		return false, "Invalid"
 	end
 	local target = Players:GetPlayerByUserId(targetUserId)
 	if not target then
@@ -151,9 +148,9 @@ RemoteUtil.Get("Pix", "RemoteFunction").OnServerInvoke = function(player, target
 	end
 	local ok, res = BankService.Pix(player, target, amount)
 	if not ok and res == "PixLimit" then
-		warn(("[Bank] Pix acima do limite: %d"):format(player.UserId))
+		RemoteUtil.Flag(player, ("Pix acima do limite (R$%d para %d)"):format(amount, targetUserId))
 	end
 	return ok, res
-end
+end)
 
 return BankService
