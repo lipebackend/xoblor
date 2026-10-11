@@ -11,7 +11,7 @@ local RemoteUtil = require(script.Parent.RemoteUtil)
 local JobCatalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("JobCatalog"))
 
 local JobService = {}
-local VIP_GAMEPASS_ID = 0 -- DevOps: trocar pelo ID real do GamePass VIP
+local VIP_GAMEPASS_ID = require(script.Parent.GamePasses).IDS.VIP -- ID real em GamePasses.lua
 local VIP_MULTIPLIER = 1.5
 local XP_PER_PAY = 10
 

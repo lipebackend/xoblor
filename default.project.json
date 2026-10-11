@@ -1,0 +1,32 @@
+{
+  "name": "xoblor",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" },
+      "Remotes": {
+        "$className": "Folder",
+        "RequestPurchase": { "$className": "RemoteFunction" },
+        "ClaimDaily": { "$className": "RemoteFunction" },
+        "BalanceChanged": { "$className": "RemoteEvent" }
+      }
+    },
+    "ServerStorage": {
+      "Items": { "$className": "Folder" },
+      "Vehicles": { "$className": "Folder" },
+      "Outfits": { "$className": "Folder" }
+    },
+    "Teams": {
+      "$className": "Teams",
+      "Civis": { "$className": "Team", "$properties": { "TeamColor": { "BrickColor": 194 }, "AutoAssignable": true } },
+      "Polícia": { "$className": "Team", "$properties": { "TeamColor": { "BrickColor": 1010 }, "AutoAssignable": false } },
+      "Saúde": { "$className": "Team", "$properties": { "TeamColor": { "BrickColor": 1 }, "AutoAssignable": false } },
+      "Mototaxistas": { "$className": "Team", "$properties": { "TeamColor": { "BrickColor": 24 }, "AutoAssignable": false } }
+    },
+    "ServerScriptService": {
+      "Economy": { "$path": "src/server/Economy" },
+      "World": { "$path": "src/server/World" }
+    },
+    "StarterGui": { "ShopUI": { "$path": "src/client/ShopUI" } }
+  }
+}

@@ -6,11 +6,12 @@ local Economy = require(script.Parent.EconomyService)
 local store = DataStoreService:GetDataStore("EconomyV1")
 local AUTOSAVE = 60
 local RETRIES = 3
-local LOCK_TTL = 300
+local LOCK_TIMEOUT = 300 -- trava de sessão expira em 5 min
+local LOCK_WAIT_TRIES = 5
 local RECEIPT_TTL = 30 * 24 * 3600
 
 local Handler = {}
-local extraData = {} -- [player] = tabela (Owned, Rewards, Receipts)
+local extraData = {}
 
 local function key(p)
 	return "Player_" .. p.UserId
@@ -29,20 +30,65 @@ local function retry(fn)
 	return false, res
 end
 
+local function pruneReceipts(extra)
+	if not extra.Receipts then
+		return
+	end
+	local now = os.time()
+	for id, t in pairs(extra.Receipts) do
+		if now - t > RECEIPT_TTL then
+			extra.Receipts[id] = nil
+		end
+	end
+end
+
+-- grava só se esta sessão for a dona; release=true libera a trava
+local function save(player, release)
+	local coins = Economy.GetSnapshot(player)
+	if coins == nil then
+		return false
+	end
+	local extra = extraData[player] or {}
+	pruneReceipts(extra)
+	local owned = false
+	local ok = retry(function()
+		store:UpdateAsync(key(player), function(old)
+			old = old or {}
+			if old.SessionJobId and old.SessionJobId ~= game.JobId then
+				owned = false
+				return nil -- outro servidor é o dono: não sobrescreve
+			end
+			owned = true
+			return {
+				Coins = coins,
+				Extra = extra,
+				Version = 1,
+				SessionJobId = (not release) and game.JobId or nil,
+				SessionTime = os.time(),
+			}
+		end)
+	end)
+	return ok and owned
+end
+
 local function load(player)
 	local data
-	for attempt = 1, 5 do
+	for _ = 1, LOCK_WAIT_TRIES do
 		local locked = false
 		local ok = retry(function()
 			store:UpdateAsync(key(player), function(old)
 				old = old or {}
-				local now = os.time()
-				if old.SessionJobId and old.SessionJobId ~= game.JobId and now - (old.SessionTime or 0) < LOCK_TTL then
+				if
+					old.SessionJobId
+					and old.SessionJobId ~= game.JobId
+					and os.time() - (old.SessionTime or 0) < LOCK_TIMEOUT
+				then
 					locked = true
 					return nil
 				end
 				locked = false
-				old.SessionJobId, old.SessionTime = game.JobId, now
+				old.SessionJobId = game.JobId
+				old.SessionTime = os.time()
 				data = old
 				return old
 			end)
@@ -55,51 +101,16 @@ local function load(player)
 			break
 		end
 		data = nil
-		task.wait(attempt * 3)
+		task.wait(5)
 	end
 	if not data then
-		player:Kick("Sua sessão ainda está ativa em outro servidor. Tente de novo.")
+		player:Kick("Seus dados ainda estão em uso em outro servidor. Tente de novo em instantes.")
 		return
 	end
 	extraData[player] = data.Extra or {}
 	if player.Parent then
 		Economy.Init(player, data.Coins)
 	end
-end
-
-local function save(player, release)
-	local coins = Economy.GetSnapshot(player)
-	if coins == nil then
-		return false
-	end
-	local extra = extraData[player] or {}
-	local owned = false
-	local ok = retry(function()
-		store:UpdateAsync(key(player), function(old)
-			old = old or {}
-			if old.SessionJobId and old.SessionJobId ~= game.JobId then
-				owned = false
-				return nil
-			end
-			owned = true
-			local now = os.time()
-			if extra.Receipts then
-				for id, t in pairs(extra.Receipts) do
-					if now - t > RECEIPT_TTL then
-						extra.Receipts[id] = nil
-					end
-				end
-			end
-			return {
-				Coins = coins,
-				Extra = extra,
-				Version = 1,
-				SessionJobId = (not release) and game.JobId or nil,
-				SessionTime = (not release) and now or nil,
-			}
-		end)
-	end)
-	return ok and owned
 end
 
 function Handler.GetExtra(player)
