@@ -8,7 +8,6 @@ local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
 local Catalog = require(RS.Shared.ShopCatalog)
 
-local rateOk = RemoteUtil.Limiter(0.5)
 local energyChanged = RemoteUtil.Get("EnergyChanged", "RemoteEvent")
 local MAX_ENERGY = 100
 
@@ -33,12 +32,8 @@ local function grant(player, item, extra)
 	-- Veiculo: só registra a posse; o spawn é do VehicleService.
 end
 
-RemoteUtil.Get("RequestPurchase", "RemoteFunction").OnServerInvoke = function(player, itemId)
-	if not rateOk(player) then
-		return false, "RateLimited"
-	end
-	if type(itemId) ~= "string" then
-		warn(("[Shop] payload suspeito de %d"):format(player.UserId))
+RemoteUtil.BindFunction("RequestPurchase", 0.5, 2, function(player, itemId)
+	if not RemoteUtil.IsId(itemId) then
 		return false, "Invalid"
 	end
 	local item = Catalog.Get(itemId)
@@ -61,6 +56,9 @@ RemoteUtil.Get("RequestPurchase", "RemoteFunction").OnServerInvoke = function(pl
 	end
 
 	local res = 0
+	if not RemoteUtil.IsInt(item.Price, 0) then
+		return false, "UnknownItem"
+	end
 	if item.Price > 0 then
 		local ok
 		ok, res = Economy.SpendCoins(player, item.Price, "shop:" .. item.Id)
@@ -75,7 +73,7 @@ RemoteUtil.Get("RequestPurchase", "RemoteFunction").OnServerInvoke = function(pl
 	end
 	grant(player, item, extra)
 	return true, res
-end
+end)
 
 -- reveste roupas compradas ao renascer (só se ainda tiver o emprego exigido)
 local function hookCharacter(p)

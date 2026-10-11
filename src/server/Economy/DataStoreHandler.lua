@@ -10,8 +10,11 @@ local LOCK_TIMEOUT = 300 -- trava de sessão expira em 5 min
 local LOCK_WAIT_TRIES = 5
 local RECEIPT_TTL = 30 * 24 * 3600
 
+local CLOSE_TIMEOUT = 25 -- BindToClose tem 30s no total
+
 local Handler = {}
 local extraData = {}
+local saving = {} -- [player] = true enquanto um save está em andamento
 
 local function key(p)
 	return "Player_" .. p.UserId
@@ -43,7 +46,7 @@ local function pruneReceipts(extra)
 end
 
 -- grava só se esta sessão for a dona; release=true libera a trava
-local function save(player, release)
+local function doSave(player, release)
 	local coins = Economy.GetSnapshot(player)
 	if coins == nil then
 		return false
@@ -68,7 +71,25 @@ local function save(player, release)
 			}
 		end)
 	end)
+	if not ok then
+		warn(("[DataStore] save de %d falhou após %d tentativas"):format(player.UserId, RETRIES))
+	end
 	return ok and owned
+end
+
+-- serializa saves do mesmo jogador (autosave x SaveNow x saída não se atropelam)
+local function save(player, release)
+	while saving[player] do
+		task.wait()
+	end
+	saving[player] = true
+	local ok, res = pcall(doSave, player, release)
+	saving[player] = nil
+	if not ok then
+		warn("[DataStore] erro no save: " .. tostring(res))
+		return false
+	end
+	return res
 end
 
 local function load(player)
@@ -107,7 +128,7 @@ local function load(player)
 		player:Kick("Seus dados ainda estão em uso em outro servidor. Tente de novo em instantes.")
 		return
 	end
-	extraData[player] = data.Extra or {}
+	extraData[player] = type(data.Extra) == "table" and data.Extra or {}
 	if player.Parent then
 		Economy.Init(player, data.Coins)
 	end
@@ -126,11 +147,20 @@ for _, p in Players:GetPlayers() do
 	task.spawn(load, p)
 end
 
-Players.PlayerRemoving:Connect(function(p)
+local released = {} -- jogadores já salvos na saída (evita save duplo com o BindToClose)
+
+local function saveAndRelease(p)
+	if released[p] then
+		return
+	end
+	released[p] = true
 	save(p, true)
 	Economy.Release(p)
 	extraData[p] = nil
-end)
+	released[p] = nil
+end
+
+Players.PlayerRemoving:Connect(saveAndRelease)
 
 game:BindToClose(function()
 	if RunService:IsStudio() then
@@ -140,12 +170,16 @@ game:BindToClose(function()
 	for _, p in Players:GetPlayers() do
 		pending += 1
 		task.spawn(function()
-			save(p, true)
+			saveAndRelease(p)
 			pending -= 1
 		end)
 	end
-	while pending > 0 do
+	local deadline = os.clock() + CLOSE_TIMEOUT
+	while pending > 0 and os.clock() < deadline do
 		task.wait()
+	end
+	if pending > 0 then
+		warn(("[DataStore] BindToClose terminou com %d saves pendentes"):format(pending))
 	end
 end)
 
@@ -153,7 +187,9 @@ task.spawn(function()
 	while true do
 		task.wait(AUTOSAVE)
 		for _, p in Players:GetPlayers() do
-			task.spawn(save, p, false)
+			if not saving[p] then
+				task.spawn(save, p, false)
+			end
 		end
 	end
 end)

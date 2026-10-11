@@ -11,7 +11,6 @@ local RemoteUtil = require(script.Parent.RemoteUtil)
 local Catalog = require(RS.Shared.ShopCatalog)
 
 local VehicleService = {}
-local rateOk = RemoteUtil.Limiter(2)
 local active = {} -- [player] = Model
 local MAX_SPAWN_DIST = 60
 
@@ -103,11 +102,11 @@ function VehicleService.List(p)
 	return out
 end
 
-RemoteUtil.Get("VehicleAction", "RemoteFunction").OnServerInvoke = function(p, action, id)
-	if not rateOk(p) then
-		return false, "RateLimited"
-	end
-	if action == "spawn" and type(id) == "string" then
+RemoteUtil.BindFunction("VehicleAction", 2, 2, function(p, action, id)
+	if action == "spawn" then
+		if not RemoteUtil.IsId(id) then
+			return false, "Invalid"
+		end
 		return VehicleService.Spawn(p, id)
 	elseif action == "despawn" then
 		VehicleService.Despawn(p)
@@ -116,7 +115,7 @@ RemoteUtil.Get("VehicleAction", "RemoteFunction").OnServerInvoke = function(p, a
 		return true, VehicleService.List(p)
 	end
 	return false, "Invalid"
-end
+end)
 
 Players.PlayerRemoving:Connect(VehicleService.Despawn)
 return VehicleService

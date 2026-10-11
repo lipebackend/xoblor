@@ -129,12 +129,9 @@ for _, part in CollectionService:GetTagged("JobStation") do
 end
 
 -- pedir demissão pelo menu
-RemoteUtil.Get("QuitJob", "RemoteFunction").OnServerInvoke = function(player)
-	if not rateOk(player) then
-		return false, "RateLimited"
-	end
+RemoteUtil.BindFunction("QuitJob", 1, 1, function(player)
 	return JobService.SetJob(player, nil)
-end
+end)
 
 -- restaura time ao carregar
 Economy.BalanceChanged:Connect(function(player, _, reason)
