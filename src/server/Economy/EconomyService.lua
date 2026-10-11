@@ -1,7 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local EconomyService = {}
-local balances = {} -- [player] = number
+local balances = {}
 local MAX_BALANCE = 1e12
 
 local changed = Instance.new("BindableEvent")
@@ -16,8 +16,8 @@ end
 local function setBalance(player, value, reason)
 	balances[player] = value
 	local ls = player:FindFirstChild("leaderstats")
-	if ls and ls:FindFirstChild("Coins") then
-		ls.Coins.Value = value
+	if ls and ls:FindFirstChild("Reais") then
+		ls.Reais.Value = value
 	end
 	remote:FireClient(player, value)
 	changed:Fire(player, value, reason)
@@ -31,7 +31,7 @@ function EconomyService.Init(player, savedBalance)
 	local ls = Instance.new("Folder")
 	ls.Name = "leaderstats"
 	local coins = Instance.new("IntValue")
-	coins.Name = "Coins"
+	coins.Name = "Reais"
 	coins.Parent = ls
 	ls.Parent = player
 	setBalance(player, math.clamp(tonumber(savedBalance) or 0, 0, MAX_BALANCE), "load")
