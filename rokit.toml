@@ -1,0 +1,6 @@
+# Ferramentas do projeto, gerenciadas pelo Rokit (https://github.com/rojo-rbx/rokit).
+# Instale com: rokit install
+[tools]
+rojo = "rojo-rbx/rojo@7.4.4"
+selene = "Kampfkarren/selene@0.32.0"
+stylua = "JohnnyMorganz/StyLua@2.6.0"
