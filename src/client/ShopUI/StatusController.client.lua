@@ -145,6 +145,8 @@ task.spawn(function()
 			TargetEmpty = "Carteira vazia",
 			SameTeamPolice = "Policial não rouba",
 			RateLimited = "Calma aí",
+			TargetGone = "O alvo saiu do servidor",
+			ServerError = "Erro, tente de novo",
 		}
 		r.OnClientEvent:Connect(function(success, value, targetUserId)
 			if success then

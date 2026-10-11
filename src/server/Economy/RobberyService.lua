@@ -73,8 +73,11 @@ local function isPolice(player)
 end
 
 function RobberyService.Rob(robber, target)
-	if typeof(target) ~= "Instance" or not target:IsA("Player") or target.Parent ~= Players or target == robber then
+	if typeof(target) ~= "Instance" or not target:IsA("Player") or target == robber then
 		return false, "Invalid"
+	end
+	if target.Parent ~= Players then
+		return false, "TargetGone" -- saiu do servidor: não é exploit, não gera strike
 	end
 	local rs, ts = stateOf(robber), stateOf(target)
 	if not rs or not ts then
@@ -126,9 +129,14 @@ RemoteUtil.BindFunction("RobAttempt", 0.5, 1, function(player, targetUserId)
 	if not RemoteUtil.IsInt(targetUserId, 1) then
 		return false, "Invalid"
 	end
-	local target = Players:GetPlayerByUserId(targetUserId)
-	if not target or target == player then
+	if targetUserId == player.UserId then
 		return false, "Invalid"
+	end
+	local target = Players:GetPlayerByUserId(targetUserId)
+	if not target then
+		-- alvo saiu entre o clique e a chamada: resposta normal, sem Flag
+		resultEvent:FireClient(player, false, "TargetGone", targetUserId)
+		return false, "TargetGone"
 	end
 	if busy[player] then
 		return false, "RateLimited"
