@@ -1,0 +1,53 @@
+name: 🐞 Relatar bug
+description: Algo não funciona como deveria no jogo.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Obrigado por relatar! Preencha o máximo que puder.
+  - type: textarea
+    id: descricao
+    attributes:
+      label: O que aconteceu?
+      description: Descreva o problema e o que você esperava que acontecesse.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Passos para reproduzir
+      placeholder: |
+        1. Entre no jogo como Civil
+        2. Abra o celular
+        3. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Economia / banco / Pix
+        - Empregos
+        - Loja / casas / veículos
+        - Interface (HUD, celular)
+        - Mapa
+        - Outra
+    validations:
+      required: true
+  - type: dropdown
+    id: ambiente
+    attributes:
+      label: Onde ocorreu?
+      options:
+        - Roblox Studio
+        - Servidor publicado
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / prints
+      description: Cole a saída do Output do Studio ou anexe capturas de tela.
+      render: shell

@@ -1,0 +1,29 @@
+name: ✨ Sugerir funcionalidade
+description: Proponha uma ideia nova ou melhoria para o jogo.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema ou necessidade isso resolve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Proposta
+      description: Como deveria funcionar para o jogador?
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas consideradas
+  - type: checkboxes
+    id: impacto
+    attributes:
+      label: Impacto
+      options:
+        - label: Mexe na economia (preços, salários, DataStore)
+        - label: Envolve GamePass / Robux
