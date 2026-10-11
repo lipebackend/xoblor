@@ -15,8 +15,12 @@ local Needs = needsModule and require(needsModule)
 local function grant(player, item, extra)
 	if item.Category == "Comida" then
 		if Needs then
-			if item.Hunger then Needs.AddHunger(player, item.Hunger) end
-			if item.Energy then Needs.AddEnergy(player, item.Energy) end
+			if item.Hunger then
+				Needs.AddHunger(player, item.Hunger)
+			end
+			if item.Energy then
+				Needs.AddEnergy(player, item.Energy)
+			end
 		else
 			extra.Energy = math.min((tonumber(extra.Energy) or 100) + (item.Energy or 0), 100)
 			extra.Hunger = math.min((tonumber(extra.Hunger) or 100) + (item.Hunger or 0), 100)

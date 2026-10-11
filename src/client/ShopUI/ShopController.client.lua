@@ -305,15 +305,25 @@ local function renderPhone()
 	if Remotes:FindFirstChild("RobAttempt") then
 		title("🦹 Assalto", phone)
 		local cd = me:GetAttribute("RobCooldownLeft") or 0
-		make("TextLabel", { Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, TextScaled = true,
-			TextColor3 = Color3.fromRGB(220, 220, 220), Parent = phone,
-			Text = cd > 0 and ("Cooldown: %d:%02d"):format(cd // 60, cd % 60) or "Pronto para agir" })
+		make("TextLabel", {
+			Size = UDim2.new(1, 0, 0, 24),
+			BackgroundTransparency = 1,
+			TextScaled = true,
+			TextColor3 = Color3.fromRGB(220, 220, 220),
+			Parent = phone,
+			Text = cd > 0 and ("Cooldown: %d:%02d"):format(cd // 60, cd % 60) or "Pronto para agir",
+		})
 		local victim = input("Nome do jogador (até 8 studs)", phone)
 		button("Assaltar", phone, function(b)
 			local t = Players:FindFirstChild(victim.Text)
-			if not t then flash(b, "Não encontrado", "Assaltar") return end
-			local ok, r = remote("RobAttempt"):InvokeServer(t.UserId)
-			if not ok then flash(b, err(r), "Assaltar") end -- sucesso chega via RobberyResult
+			if not t then
+				flash(b, "Não encontrado", "Assaltar")
+				return
+			end
+			local okR, r = remote("RobAttempt"):InvokeServer(t.UserId)
+			if not okR then
+				flash(b, err(r), "Assaltar")
+			end -- sucesso chega via RobberyResult
 		end)
 	end
 	-- Garagem
