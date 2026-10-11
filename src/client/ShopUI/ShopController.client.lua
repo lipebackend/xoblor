@@ -148,7 +148,7 @@ end
 -- Barra lateral
 local bar = make(
 	"Frame",
-	{ Size = UDim2.fromOffset(110, 160), Position = UDim2.new(0, 10, 0, 90), BackgroundTransparency = 1, Parent = gui },
+	{ Size = UDim2.fromOffset(110, 160), Position = UDim2.fromOffset(10, 90), BackgroundTransparency = 1, Parent = gui },
 	{ make("UIListLayout", { Padding = UDim.new(0, 6) }) }
 )
 
