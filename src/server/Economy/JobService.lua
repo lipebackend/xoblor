@@ -46,7 +46,8 @@ local function isVip(player)
 		return false
 	end
 	if vipCache[player] == nil then
-		local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, VIP_GAMEPASS_ID)
+		local ok, owns =
+			pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, VIP_GAMEPASS_ID)
 		vipCache[player] = ok and owns or false
 	end
 	return vipCache[player]

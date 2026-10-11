@@ -23,7 +23,9 @@ local function grant(player, item, extra)
 		if outfit and char then
 			for _, c in outfit:GetChildren() do
 				local old = char:FindFirstChildOfClass(c.ClassName)
-				if old and (c:IsA("Shirt") or c:IsA("Pants")) then old:Destroy() end
+				if old and (c:IsA("Shirt") or c:IsA("Pants")) then
+					old:Destroy()
+				end
 				c:Clone().Parent = char
 			end
 		end
@@ -32,14 +34,20 @@ local function grant(player, item, extra)
 end
 
 RemoteUtil.Get("RequestPurchase", "RemoteFunction").OnServerInvoke = function(player, itemId)
-	if not rateOk(player) then return false, "RateLimited" end
+	if not rateOk(player) then
+		return false, "RateLimited"
+	end
 	if type(itemId) ~= "string" then
 		warn(("[Shop] payload suspeito de %d"):format(player.UserId))
 		return false, "Invalid"
 	end
 	local item = Catalog.Get(itemId)
-	if not item then return false, "UnknownItem" end
-	if not Economy.IsLoaded(player) then return false, "NotLoaded" end
+	if not item then
+		return false, "UnknownItem"
+	end
+	if not Economy.IsLoaded(player) then
+		return false, "NotLoaded"
+	end
 	if item.RequiredJob and JobService.GetJob(player) ~= item.RequiredJob then
 		return false, "WrongJob"
 	end
@@ -48,13 +56,17 @@ RemoteUtil.Get("RequestPurchase", "RemoteFunction").OnServerInvoke = function(pl
 	extra.Owned = extra.Owned or {}
 	extra.Vehicles = extra.Vehicles or {}
 	local owned = item.Category == "Veiculo" and extra.Vehicles[item.Id] or extra.Owned[item.Id]
-	if item.Unique and owned then return false, "AlreadyOwned" end
+	if item.Unique and owned then
+		return false, "AlreadyOwned"
+	end
 
 	local res = 0
 	if item.Price > 0 then
 		local ok
 		ok, res = Economy.SpendCoins(player, item.Price, "shop:" .. item.Id)
-		if not ok then return false, res end
+		if not ok then
+			return false, res
+		end
 	end
 	if item.Category == "Veiculo" then
 		extra.Vehicles[item.Id] = true
@@ -72,11 +84,17 @@ local function hookCharacter(p)
 		local extra = Data.GetExtra(p)
 		for id in pairs(extra and extra.Owned or {}) do
 			local item = Catalog.Get(id)
-			if item and item.Category == "Roupa" and (not item.RequiredJob or JobService.GetJob(p) == item.RequiredJob) then
+			if
+				item
+				and item.Category == "Roupa"
+				and (not item.RequiredJob or JobService.GetJob(p) == item.RequiredJob)
+			then
 				grant(p, item, extra)
 			end
 		end
 	end)
 end
 Players.PlayerAdded:Connect(hookCharacter)
-for _, p in Players:GetPlayers() do hookCharacter(p) end
+for _, p in Players:GetPlayers() do
+	hookCharacter(p)
+end
