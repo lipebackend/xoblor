@@ -15,7 +15,13 @@ function EconomyLogic.NormalizeBalance(v)
 	return math.clamp(math.floor(v), 0, EconomyLogic.MAX_BALANCE)
 end
 
--- Retorna true, novo saldo (limitado ao máximo) ou false, erro.
+-- Quanto ainda cabe na carteira.
+function EconomyLogic.RoomFor(balance)
+	return math.max(EconomyLogic.MAX_BALANCE - balance, 0)
+end
+
+-- Retorna true, novo saldo, valor creditado (pode ser menor que amount perto do teto);
+-- ou false, erro. Carteira cheia (nada cabe) é "WalletFull".
 function EconomyLogic.Add(balance, amount)
 	if not EconomyLogic.ValidAmount(amount) then
 		return false, "InvalidAmount"
@@ -23,7 +29,19 @@ function EconomyLogic.Add(balance, amount)
 	if balance == nil then
 		return false, "NotLoaded"
 	end
-	return true, math.min(balance + amount, EconomyLogic.MAX_BALANCE)
+	local credited = math.min(amount, EconomyLogic.RoomFor(balance))
+	if credited <= 0 then
+		return false, "WalletFull"
+	end
+	return true, balance + credited, credited
+end
+
+-- Divide um crédito pago (Robux) entre carteira e banco, sem perder nada que caiba.
+-- Retorna paraCarteira, paraBanco, perdido (perdido só > 0 se os dois estiverem no teto).
+function EconomyLogic.SplitCredit(wallet, bank, amount)
+	local toWallet = math.min(amount, EconomyLogic.RoomFor(wallet))
+	local toBank = math.min(amount - toWallet, EconomyLogic.RoomFor(bank))
+	return toWallet, toBank, amount - toWallet - toBank
 end
 
 function EconomyLogic.Spend(balance, amount)
