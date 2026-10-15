@@ -45,6 +45,28 @@ Tudo ficou abaixo da meta, então nenhuma otimização foi necessária. Do custo
 
 O max às vezes tem picos isolados de 1 a 50 ms. São coleta de lixo e agendamento do SO na VM, não se repetem e não aparecem no p95/p99.
 
+## Autosave: todos no mesmo tick x escalonado (#43)
+
+Dois cenários rodam movimento + remotes em todo tick e incluem o autosave na cadência real, com cada jogador salvando a cada 60 s (120 ticks):
+
+- **antes:** todos os jogadores salvam juntos a cada 120 ticks, como o `DataStoreHandler` fazia antes do #43;
+- **depois:** cada jogador salva na sua fase do `AutosaveSchedule`, o módulo do #43.
+
+O cenário "depois" só roda se `src/server/Economy/AutosaveSchedule.lua` existir. Sem ele, o bench avisa e pula o cenário.
+
+Como só 1 tick em 120 tem save, o efeito aparece no **max**, que é o pior tick. A mediana e o p95 quase não mudam. Medição com 2400 ticks (20 ciclos de autosave), na mesma máquina, em ms por tick:
+
+| jogadores | cenário | mediana | p95 | p99 | max |
+|---|---|---|---|---|---|
+| 30 | antes (todos juntos) | 0.0538 | 0.0746 | 0.1187 | 0.5666 |
+| 30 | depois (escalonado) | 0.0553 | 0.0805 | 0.1025 | **0.1596** |
+| 60 | antes (todos juntos) | 0.0848 | 0.1268 | 0.1897 | 1.2394 |
+| 60 | depois (escalonado) | 0.0953 | 0.1335 | 0.1635 | **0.2001** |
+
+O pior tick cai de ~0,57 para ~0,16 ms com 30 jogadores, e de ~1,24 para ~0,20 ms com 60. Com 60 jogadores, o "antes" passa da meta de 1 ms. A mediana sobe ~0,01 ms por causa do `Schedule.Due` a cada tick.
+
+No jogo, o ganho maior está fora do script: o orçamento de `UpdateAsync` deixa de receber 30 a 60 requisições no mesmo segundo.
+
 ## Limitações (lune ≠ Roblox)
 
 - O lune roda Luau com o mesmo compilador, mas sem o codegen nativo (`--!native`) e com outro GC e outro agendador. No servidor Roblox, os números absolutos podem ser diferentes. O que vale é a ordem de grandeza e a comparação antes/depois.

@@ -172,7 +172,7 @@ return function(T)
 			eq(S.Truncate("ação 😀", 100), "ação 😀")
 		end)
 		it("bytes inválidos viram ?", function()
-			eq(S.ValidUtf8("a\xFFb"), "a?b")
+			eq(S.ValidUtf8("a" .. string.char(0xFF) .. "b"), "a?b")
 			eq(S.ValidUtf8("\xC3"), "?") -- sequência truncada
 			eq(S.ValidUtf8("\x80\x80ok"), "??ok")
 			eq(S.ValidUtf8("ção"), "ção")
