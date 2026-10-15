@@ -69,7 +69,7 @@ local function doSave(player, release, deadline)
 	local extra = extraData[player] or {}
 	pruneReceipts(extra)
 	local owned = false
-	local ok = retry(function()
+	local ok, err, attempts, why = retry(function()
 		store:UpdateAsync(key(player), function(old)
 			local new = Logic.BuildSave(old, game.JobId, os.time(), coins, extra, jailData[player], release)
 			owned = new ~= nil
@@ -77,7 +77,9 @@ local function doSave(player, release, deadline)
 		end)
 	end, deadline)
 	if not ok then
-		warn(("[DataStore] save de %d falhou após %d tentativas"):format(player.UserId, RETRIES))
+		warn(("[DataStore] save de %d falhou após %d tentativas"):format(player.UserId, attempts or RETRIES))
+		-- só a falha final vai para o SecurityLog (as tentativas ficam no warn); sem dados do perfil
+		SecurityLog.Record(player, "save_failed", "DataStore", Retry.FailureDetails(err, attempts, why))
 	elseif not owned and not release and player.Parent then
 		-- perdemos a trava (outro servidor tomou): continuar jogando aqui duplicaria progresso
 		SecurityLog.Record(player, "session_lock_lost", "DataStore", "trava tomada por outro servidor; expulsando")

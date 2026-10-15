@@ -3,6 +3,7 @@
 local Retry = require("../src/server/Economy/DataStoreRetry")
 local P = require("../src/server/Economy/ProfileLogic")
 local S = require("../src/server/Economy/AutosaveSchedule")
+local Sec = require("../src/server/Economy/SecurityLogic")
 
 local THROTTLE = "502: API Services rejected request with error. HTTP 429 (Too Many Requests)"
 local INTERNAL = "500: Internal Server Error"
@@ -62,16 +63,20 @@ end
 
 local JOB = "job-A"
 
--- Mesmo fluxo do DataStoreHandler.doSave: UpdateAsync + BuildSave dentro de retry.
+-- Mesmo fluxo do DataStoreHandler.doSave: UpdateAsync + BuildSave dentro de retry e, na falha
+-- final, um único SecurityLog.Record(player, "save_failed", "DataStore", FailureDetails(...)).
 local function save(store, env, p, release, deadline)
 	local owned = false
-	local ok, _, n = Retry.Run(function()
+	local ok, err, n, why = Retry.Run(function()
 		store:UpdateAsync("Player_" .. p.id, function(old)
 			local new = P.BuildSave(old, JOB, env.t, p.coins, p.extra or {}, p.jail, release)
 			owned = new ~= nil
 			return new
 		end)
 	end, env, deadline)
+	if not ok and env.records then
+		table.insert(env.records, Sec.Entry("save_failed", p.id, "DataStore", Retry.FailureDetails(err, n, why), env.t))
+	end
 	return ok and owned, ok, n
 end
 
@@ -289,6 +294,89 @@ return function(T)
 			eq(ok, false)
 			truthy(env.t <= deadline)
 			eq(#env.logs, n)
+		end)
+	end)
+
+	describe("SecurityLog save_failed (só a falha final)", function()
+		local function envWithRecords(extra)
+			local env = newEnv(extra)
+			env.records = {}
+			return env
+		end
+		local function noProfileData(details, p)
+			truthy(details:find(tostring(p.coins), 1, true) == nil, "moedas no details")
+			truthy(details:find("Coins", 1, true) == nil)
+			truthy(details:find("Player_", 1, true) == nil, "chave no details")
+			truthy(details:find("Pizza", 1, true) == nil, "extra no details")
+		end
+
+		it("evento registrado", function()
+			eq(Sec.EVENTS.save_failed, true)
+		end)
+
+		it("falha final: exatamente um save_failed com userId, motivo, classe e tentativas", function()
+			local store = newStore()
+			store.fail = function()
+				return THROTTLE
+			end
+			local env = envWithRecords()
+			local p = { id = 42, coins = 987654, extra = { Inventory = { "Pizza" } } }
+			save(store, env, p, false)
+			eq(#env.records, 1)
+			local e = env.records[1]
+			eq(e.event, "save_failed")
+			eq(e.userId, 42)
+			eq(e.context, "DataStore")
+			eq(e.details, "reason=exhausted error=429 attempts=5")
+			eq(#env.logs, 5) -- warns por tentativa continuam
+			noProfileData(e.details, p)
+		end)
+
+		it("sucesso depois de repetir: nenhum save_failed", function()
+			local store = newStore()
+			store.fail = function(n)
+				return n <= 3 and INTERNAL or nil
+			end
+			local env = envWithRecords()
+			local okSave = save(store, env, { id = 1, coins = 5 }, false)
+			eq(okSave, true)
+			eq(#env.records, 0)
+			eq(#env.logs, 3)
+		end)
+
+		it("desistência pelo prazo: um save_failed com reason=deadline", function()
+			local store = newStore()
+			store.fail = function()
+				return INTERNAL
+			end
+			local env = envWithRecords()
+			local p = { id = 7, coins = 31337 }
+			save(store, env, p, true, 5)
+			eq(#env.records, 1)
+			eq(env.records[1].details, "reason=deadline error=500 attempts=3")
+			noProfileData(env.records[1].details, p)
+		end)
+
+		it("erro com texto/valores do perfil: details só leva a classe", function()
+			local store = newStore()
+			store.fail = function()
+				return "Player_9 Coins=555444 Pizza: value too large"
+			end
+			local env = envWithRecords()
+			local p = { id = 9, coins = 555444, extra = { Inventory = { "Pizza" } } }
+			save(store, env, p, false)
+			eq(#env.records, 1)
+			eq(env.records[1].details, "reason=exhausted error=error attempts=5")
+			noProfileData(env.records[1].details, p)
+			noProfileData(Sec.Format(env.records[1]), p)
+		end)
+
+		it("ErrorClass pega só códigos de 3 dígitos isolados", function()
+			eq(Retry.ErrorClass(THROTTLE), "429") -- código HTTP tem prioridade sobre o 502 do prefixo
+			eq(Retry.ErrorClass(INTERNAL), "500")
+			eq(Retry.ErrorClass("HTTP 429 (Too Many Requests)"), "429")
+			eq(Retry.ErrorClass("timeout 12345"), "error")
+			eq(Retry.ErrorClass(nil), "error")
 		end)
 	end)
 end
