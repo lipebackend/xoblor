@@ -21,15 +21,26 @@ command -v unzip >/dev/null || { echo "Instale o unzip primeiro." >&2; exit 1; }
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# Zips baixados ficam em $DL (cacheado na CI). Todo zip, novo ou do cache, é conferido
+# contra o sha256 fixado acima antes de extrair: cache adulterado falha aqui.
+DL="${TOOLS_DL_DIR:-$DEST/.dl}"
+mkdir -p "$DL"
+
 for entry in "${TOOLS[@]}"; do
   read -r name url sha <<<"$entry"
-  if [ -x "$DEST/$name" ] && [ "$(cat "$DEST/.$name.sha256" 2>/dev/null)" = "$sha" ]; then
-    continue
+  if [ -x "$DEST/$name" ] && [ "$(cat "$DEST/.$name.sha256" 2>/dev/null)" = "$sha" ] && [ -z "${CI:-}" ]; then
+    continue # uso local: já extraído desta mesma versão
   fi
-  echo "Baixando $name..."
-  curl -fsSL --retry 3 -o "$TMP/$name.zip" "$url"
-  echo "$sha  $TMP/$name.zip" | sha256sum -c --quiet - || { echo "sha256 inválido para $name" >&2; exit 1; }
-  unzip -o -q "$TMP/$name.zip" "$name" -d "$DEST"
+  zip="$DL/$name-$sha.zip"
+  if [ -f "$zip" ] && echo "$sha  $zip" | sha256sum -c --quiet - 2>/dev/null; then
+    echo "$name: zip do cache (sha256 ok)"
+  else
+    echo "Baixando $name..."
+    curl -fsSL --retry 3 -o "$TMP/$name.zip" "$url"
+    echo "$sha  $TMP/$name.zip" | sha256sum -c --quiet - || { echo "sha256 inválido para $name" >&2; exit 1; }
+    mv "$TMP/$name.zip" "$zip"
+  fi
+  unzip -o -q "$zip" "$name" -d "$DEST"
   chmod +x "$DEST/$name"
   echo "$sha" >"$DEST/.$name.sha256"
 done
