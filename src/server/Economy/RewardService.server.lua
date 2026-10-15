@@ -24,7 +24,7 @@ local function rewards(p)
 	return extra.Rewards
 end
 
-RemoteUtil.BindFunction("ClaimDaily", 1, 2, function(player)
+RemoteUtil.BindFunction("ClaimDaily", function(player)
 	if not Economy.IsLoaded(player) then
 		return false, "NotLoaded"
 	end

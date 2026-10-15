@@ -15,6 +15,7 @@ for _, name in
 		"SalaryLogic.spec",
 		"ProfileLogic.spec",
 		"MoveLogic.spec",
+		"RemoteGuard.spec",
 		"AtmLogic.spec",
 	}
 do

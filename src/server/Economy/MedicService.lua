@@ -6,6 +6,7 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(script.Parent.EconomyService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local Guard = require(script.Parent.RemoteGuard)
 local NeedsService = require(script.Parent.NeedsService)
 local JobService = require(script.Parent.JobService)
 local JailState = require(script.Parent.JailState)
@@ -136,7 +137,7 @@ function MedicService.Revive(medic, target)
 		MedicJailed = JailState.IsJailed(medic),
 		CooldownUntil = reviveCooldown[medic] or 0,
 		TargetDowned = DownState.IsDowned(target),
-		Distance = (a and b) and (a.Position - b.Position).Magnitude or nil,
+		Distance = select(2, Guard.Within(a and a.Position, b and b.Position, math.huge)),
 		Now = now,
 	})
 	if err then
@@ -155,7 +156,7 @@ function MedicService.Revive(medic, target)
 	return true, fee
 end
 
-RemoteUtil.BindFunction("Revive", 0.5, 1, function(medic, targetUserId)
+RemoteUtil.BindFunction("Revive", function(medic, targetUserId)
 	if not RemoteUtil.IsInt(targetUserId, 1) or targetUserId == medic.UserId then
 		return false, "Invalid"
 	end
@@ -167,7 +168,7 @@ RemoteUtil.BindFunction("Revive", 0.5, 1, function(medic, targetUserId)
 end)
 
 -- "Chamar médico": avisa os médicos em serviço com a posição. Limite: 1 a cada CALL_INTERVAL.
-RemoteUtil.BindFunction("CallMedic", Config.CALL_INTERVAL, 1, function(player)
+RemoteUtil.BindFunction("CallMedic", function(player)
 	if not DownState.IsDowned(player) then
 		return false, "NotDowned"
 	end
@@ -183,7 +184,7 @@ RemoteUtil.BindFunction("CallMedic", Config.CALL_INTERVAL, 1, function(player)
 		end
 	end
 	return true, n
-end)
+end, { interval = Config.CALL_INTERVAL, burst = 1 })
 
 -- reset desmaiado = ida ao hospital (cobra a taxa no novo personagem)
 local function hookCharacter(player)

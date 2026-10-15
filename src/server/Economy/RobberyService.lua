@@ -5,6 +5,7 @@ local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local Guard = require(script.Parent.RemoteGuard)
 local JailState = require(script.Parent.JailState)
 local Logic = require(script.Parent.RobberyLogic)
 local EconomyLogic = require(script.Parent.EconomyLogic)
@@ -104,7 +105,8 @@ function RobberyService.Rob(robber, target)
 		return false, denied
 	end
 	local a, b = rootOf(robber), rootOf(target)
-	if not a or not b or (a.Position - b.Position).Magnitude > MAX_DISTANCE then
+	-- RemoteGuard.Within recusa nil/NaN/inf (antes, posição NaN passava: NaN > 8 é falso)
+	if not Guard.Within(a and a.Position, b and b.Position, MAX_DISTANCE) then
 		return false, "TooFar"
 	end
 	local ok, wallet = Economy.GetBalance(target)
@@ -160,7 +162,7 @@ function RobberyService.ClearWanted(player)
 end
 
 -- RobAttempt: 1 chamada a cada 0,5s. Payload inválido gera Flag (via BindFunction).
-RemoteUtil.BindFunction("RobAttempt", 0.5, 1, function(player, targetUserId)
+RemoteUtil.BindFunction("RobAttempt", function(player, targetUserId)
 	if not RemoteUtil.IsInt(targetUserId, 1) then
 		return false, "Invalid"
 	end

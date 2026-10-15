@@ -1,6 +1,7 @@
 -- Remotes em ReplicatedStorage.Remotes com rate limit (token bucket), validação e log de abuso.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local Guard = require(script.Parent.RemoteGuard)
 
 local RemoteUtil = {}
 local folder = ReplicatedStorage:WaitForChild("Remotes")
@@ -41,45 +42,71 @@ function RemoteUtil.Get(name, className)
 	return r
 end
 
--- Token bucket: `burst` chamadas seguidas, recarga de 1 a cada `interval` segundos.
+-- Rate limit e schema de TODOS os RemoteFunctions ficam aqui (um lugar só).
+-- interval/burst = token bucket por jogador e por remote. args = validadores (RemoteGuard.V).
+local V = Guard.V
+RemoteUtil.REMOTES = {
+	VehicleAction = { interval = 2, burst = 2, args = { V.OneOf("spawn", "despawn", "list"), V.Optional(V.Id) } },
+	RequestPurchase = { interval = 0.5, burst = 2, args = { V.Id } },
+	RobAttempt = { interval = 0.5, burst = 1, args = { V.UserId } },
+	RideStart = { interval = 1, burst = 1, args = {} },
+	RideCancel = { interval = 1, burst = 1, args = {} },
+	ClaimDaily = { interval = 1, burst = 2, args = {} },
+	Revive = { interval = 0.5, burst = 1, args = { V.UserId } },
+	CallMedic = { interval = 30, burst = 1, args = {} }, -- o bind usa Config.CALL_INTERVAL do MedicLogic
+	QuitJob = { interval = 1, burst = 1, args = {} },
+	StoreBuy = { interval = 0.5, burst = 2, args = { V.Id } },
+	AtmAction = { interval = 0.5, burst = 2, args = { V.OneOf("balance", "deposit", "withdraw"), V.Optional(V.Money) } },
+	InteractClose = { interval = 0.5, burst = 2, args = {} },
+	HouseAction = {
+		interval = 0.5,
+		burst = 3,
+		args = { V.OneOf("list", "rent", "buy", "invite", "uninvite"), V.Optional(V.Id), V.Optional(V.UserId) },
+	},
+	BankDeposit = { interval = 0.5, burst = 2, args = { V.Money } },
+	BankWithdraw = { interval = 0.5, burst = 2, args = { V.Money } },
+	BankGet = { interval = 0.5, burst = 3, args = {} },
+	Pix = { interval = 1, burst = 2, args = { V.UserId, V.Money } },
+	Arrest = { interval = 0.5, burst = 1, args = { V.UserId } },
+}
+-- Teto global por jogador, somando todos os remotes (anti-flood).
+RemoteUtil.GLOBAL = { interval = 0.1, burst = 20 }
+
+-- Token bucket por jogador: `burst` chamadas seguidas, recarga de 1 a cada `interval` segundos.
 function RemoteUtil.Limiter(interval, burst)
-	burst = burst or 1
 	local buckets = {}
 	Players.PlayerRemoving:Connect(function(p)
 		buckets[p] = nil
 	end)
 	return function(player)
-		local now = os.clock()
-		local b = buckets[player]
-		if not b then
-			b = { tokens = burst, at = now }
-			buckets[player] = b
-		end
-		b.tokens = math.min(burst, b.tokens + (now - b.at) / interval)
-		b.at = now
-		if b.tokens < 1 then
-			return false
-		end
-		b.tokens -= 1
-		return true
+		local ok
+		ok, buckets[player] = Guard.Take(buckets[player], os.clock(), interval, burst)
+		return ok
 	end
 end
 
--- Validadores de payload vindo do cliente.
-function RemoteUtil.IsInt(n, min, max)
-	return type(n) == "number" and n == n and n % 1 == 0 and n >= (min or -math.huge) and n <= (max or math.huge)
-end
+-- Validadores de payload vindo do cliente (NaN e infinito recusados).
+RemoteUtil.IsInt = Guard.IsInt
+RemoteUtil.IsId = Guard.IsId
 
-function RemoteUtil.IsId(s)
-	return type(s) == "string" and #s > 0 and #s <= 64 and s:match("^[%w_]+$") ~= nil
-end
+local globalOk = RemoteUtil.Limiter(RemoteUtil.GLOBAL.interval, RemoteUtil.GLOBAL.burst)
 
--- Liga um RemoteFunction com rate limit, pcall e log. handler(player, ...) -> ok, res
-function RemoteUtil.BindFunction(name, interval, burst, handler)
+-- Liga um RemoteFunction registrado em REMOTES: rate limit (por remote e global), schema, pcall e log.
+-- handler(player, ...) -> ok, res. `override` opcional troca interval/burst (ex.: valor de config).
+function RemoteUtil.BindFunction(name, handler, override)
+	local spec = RemoteUtil.REMOTES[name]
+	assert(spec, "Remote sem registro em RemoteUtil.REMOTES: " .. tostring(name))
+	local interval = override and override.interval or spec.interval
+	local burst = override and override.burst or spec.burst
 	local rateOk = RemoteUtil.Limiter(interval, burst)
 	RemoteUtil.Get(name, "RemoteFunction").OnServerInvoke = function(player, ...)
-		if not rateOk(player) then
+		if not globalOk(player) or not rateOk(player) then
 			return false, "RateLimited"
+		end
+		local valid, bad = Guard.Check(spec.args, select("#", ...), { ... })
+		if not valid then
+			RemoteUtil.Flag(player, ("%s: argumento %d inválido"):format(name, bad))
+			return false, "Invalid"
 		end
 		-- repassa todos os retornos do handler (ex.: BankDeposit devolve ok, banco, movido)
 		local r = table.pack(pcall(handler, player, ...))

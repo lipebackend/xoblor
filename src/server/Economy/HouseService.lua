@@ -211,7 +211,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- Remotes
-RemoteUtil.BindFunction("HouseAction", 0.5, 3, function(p, action, id, arg)
+RemoteUtil.BindFunction("HouseAction", function(p, action, id, arg)
 	if type(action) ~= "string" then
 		return false, "Invalid"
 	end

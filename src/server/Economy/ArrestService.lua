@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
 local Economy = require(script.Parent.EconomyService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local Guard = require(script.Parent.RemoteGuard)
 local RobberyService = require(script.Parent.RobberyService)
 local JailState = require(script.Parent.JailState)
 local ArrestLogic = require(script.Parent.ArrestLogic)
@@ -60,7 +61,7 @@ function ArrestService.Arrest(cop, target)
 		TargetIsPolice = RobberyService.IsPolice(target),
 		TargetWanted = RobberyService.IsWanted(target),
 		TargetJailed = JailState.IsJailed(target),
-		Distance = (a and b) and (a.Position - b.Position).Magnitude or nil,
+		Distance = select(2, Guard.Within(a and a.Position, b and b.Position, math.huge)),
 		Now = now,
 	})
 	if err then
@@ -115,7 +116,7 @@ function ArrestService.Arrest(cop, target)
 	return true, sentence
 end
 
-RemoteUtil.BindFunction("Arrest", 0.5, 1, function(cop, targetUserId)
+RemoteUtil.BindFunction("Arrest", function(cop, targetUserId)
 	if not RemoteUtil.IsInt(targetUserId, 1) or targetUserId == cop.UserId then
 		return false, "Invalid"
 	end
