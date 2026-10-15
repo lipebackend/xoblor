@@ -163,7 +163,7 @@ end
 
 -- RobAttempt: 1 chamada a cada 0,5s. Payload inválido gera Flag (via BindFunction).
 RemoteUtil.BindFunction("RobAttempt", function(player, targetUserId)
-	if not RemoteUtil.IsInt(targetUserId, 1) then
+	if not RemoteUtil.IsUserId(targetUserId) then
 		return false, "Invalid"
 	end
 	if targetUserId == player.UserId then

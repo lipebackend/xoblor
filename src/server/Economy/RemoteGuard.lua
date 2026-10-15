@@ -48,7 +48,24 @@ function V.Int(min, max)
 	end
 end
 V.Money = V.Int(1, RemoteGuard.MAX_MONEY)
-V.UserId = V.Int(1, RemoteGuard.MAX_USER_ID)
+-- UserId: inteiro != 0. Produção: 1..2^53. No Studio (Test com vários jogadores) os jogadores
+-- locais têm UserId negativo (-1, -2, ...), então com `studio` = true aceita também -2^53..-1.
+-- O flag é injetado (RemoteUtil passa RunService:IsStudio()); padrão = produção.
+RemoteGuard.Studio = false
+function RemoteGuard.SetStudio(on)
+	RemoteGuard.Studio = on == true
+end
+
+function RemoteGuard.IsUserId(v, studio)
+	if not RemoteGuard.IsInt(v, -RemoteGuard.MAX_USER_ID, RemoteGuard.MAX_USER_ID) or v == 0 then
+		return false
+	end
+	return v > 0 or studio == true
+end
+
+V.UserId = function(v)
+	return RemoteGuard.IsUserId(v, RemoteGuard.Studio)
+end
 V.Id = RemoteGuard.IsId
 
 function V.OneOf(...)
