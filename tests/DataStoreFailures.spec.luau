@@ -378,5 +378,25 @@ return function(T)
 			eq(Retry.ErrorClass("timeout 12345"), "error")
 			eq(Retry.ErrorClass(nil), "error")
 		end)
+
+		it("ErrorClass: não-string sempre vira error (sem dígitos de endereço)", function()
+			-- tabela cujo tostring tem dígitos que pareceriam código
+			local t = setmetatable({}, {
+				__tostring = function()
+					return "table: 0x0000000000290"
+				end,
+			})
+			eq(Retry.ErrorClass(t), "error")
+			eq(Retry.ErrorClass({}), "error")
+			eq(Retry.ErrorClass({ code = 429 }), "error")
+			eq(Retry.ErrorClass(429), "error")
+			eq(Retry.ErrorClass(500.5), "error")
+			eq(Retry.ErrorClass(true), "error")
+			eq(Retry.ErrorClass(false), "error")
+			eq(Retry.ErrorClass(nil), "error")
+			eq(Retry.ErrorClass(print), "error")
+			eq(Retry.ErrorClass(coroutine.create(function() end)), "error") -- tipo opaco, como userdata
+			eq(Retry.FailureDetails({}, 2, "deadline"), "reason=deadline error=error attempts=2")
+		end)
 	end)
 end
