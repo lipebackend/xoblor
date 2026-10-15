@@ -3,6 +3,7 @@
 -- Regras e padrões em MedicLogic.Config. O desmaio não é salvo (DownState fica só em memória).
 local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(script.Parent.EconomyService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
 local NeedsService = require(script.Parent.NeedsService)
@@ -10,10 +11,12 @@ local JobService = require(script.Parent.JobService)
 local JailState = require(script.Parent.JailState)
 local DownState = require(script.Parent.DownState)
 local MedicLogic = require(script.Parent.MedicLogic)
+local JobCatalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("JobCatalog"))
 
 local MedicService = {}
 local Config = MedicLogic.Config
-local MEDIC_JOB, MEDIC_TEAM = "medico", "Saúde"
+local MEDIC_JOB = JobCatalog.MEDIC_JOB
+local MEDIC_TEAM = JobCatalog.Get(MEDIC_JOB).Team
 
 local medicEvent = RemoteUtil.Get("MedicEvent", "RemoteEvent") -- (kind, info)
 local zeroSince = {} -- [player] = os.clock() desde que a necessidade zerou
