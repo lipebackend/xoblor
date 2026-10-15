@@ -1,0 +1,90 @@
+local L = require("../src/server/Economy/InteractLogic")
+
+return function(T)
+	local describe, it, eq, truthy = T.describe, T.it, T.eq, T.truthy
+
+	describe("InteractLogic.KindOf", function()
+		it("Banco é caixa eletrônico", function()
+			eq(L.KindOf("Banco"), "ATM")
+		end)
+		it("categorias de loja", function()
+			eq(L.KindOf("Comida"), "Shop")
+			eq(L.KindOf("Roupa"), "Shop")
+			eq(L.KindOf("Veiculo"), "Shop")
+		end)
+		it("desconhecida ou casa/gamepass não abre nada", function()
+			eq(L.KindOf("Casa"), nil)
+			eq(L.KindOf("GamePass"), nil)
+			eq(L.KindOf(nil), nil)
+		end)
+	end)
+
+	describe("InteractLogic.CheckSession", function()
+		local s = { Kind = "Shop", OpenedAt = 100 }
+		it("válida perto e no prazo", function()
+			eq(L.CheckSession(s, "Shop", 5, 150), nil)
+			eq(L.CheckSession(s, "Shop", L.MAX_DISTANCE, 150), nil)
+		end)
+		it("sem painel aberto", function()
+			eq(L.CheckSession(nil, "Shop", 1, 150), "NoSession")
+		end)
+		it("tipo errado (comprar no caixa eletrônico)", function()
+			eq(L.CheckSession(s, "ATM", 1, 150), "WrongPlace")
+		end)
+		it("longe da parte", function()
+			eq(L.CheckSession(s, "Shop", L.MAX_DISTANCE + 0.1, 150), "TooFar")
+			eq(L.CheckSession(s, "Shop", nil, 150), "TooFar")
+			eq(L.CheckSession(s, "Shop", 0 / 0, 150), "TooFar")
+		end)
+		it("expira", function()
+			eq(L.CheckSession(s, "Shop", 1, 100 + L.SESSION_TTL), "Expired")
+		end)
+		it("tolerância do servidor ≥ distância do prompt", function()
+			truthy(L.MAX_DISTANCE >= L.PROMPT_DISTANCE)
+		end)
+	end)
+
+	describe("InteractLogic.ItemsFor", function()
+		local items = {
+			b = { Category = "Comida", Price = 8 },
+			a = { Category = "Comida", Price = 8 },
+			c = { Category = "Comida", Price = 5 },
+			v = { Category = "Veiculo", Price = 300 },
+		}
+		it("filtra e ordena por preço e id", function()
+			local list = L.ItemsFor(items, "Comida")
+			eq(#list, 3)
+			eq(list[1], "c")
+			eq(list[2], "a")
+			eq(list[3], "b")
+		end)
+		it("categoria vazia", function()
+			eq(#L.ItemsFor(items, "Roupa"), 0)
+		end)
+	end)
+
+	describe("InteractLogic.CanBuyHere", function()
+		it("item da categoria da loja", function()
+			eq(L.CanBuyHere({ Category = "Comida" }, "Comida"), nil)
+		end)
+		it("item de outra loja", function()
+			eq(L.CanBuyHere({ Category = "Veiculo" }, "Comida"), "WrongStore")
+		end)
+		it("item inexistente", function()
+			eq(L.CanBuyHere(nil, "Comida"), "UnknownItem")
+		end)
+	end)
+
+	describe("InteractLogic.ValidAmount", function()
+		it("inteiros positivos", function()
+			truthy(L.ValidAmount(1))
+			truthy(L.ValidAmount(500))
+		end)
+		it("rejeita lixo", function()
+			for _, v in { 0, -1, 1.5, 0 / 0, math.huge, "10", L.MAX_AMOUNT + 1 } do
+				eq(L.ValidAmount(v), false)
+			end
+			eq(L.ValidAmount(nil), false)
+		end)
+	end)
+end
