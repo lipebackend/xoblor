@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Guard = require(script.Parent.RemoteGuard)
+local Specs = require(script.Parent.RemoteSpecs)
 local SecurityLog = require(script.Parent.SecurityLog)
 local SecurityLogic = require(script.Parent.SecurityLogic)
 
@@ -49,36 +50,9 @@ function RemoteUtil.Get(name, className)
 	return r
 end
 
--- Rate limit e schema de TODOS os RemoteFunctions ficam aqui (um lugar só).
--- interval/burst = token bucket por jogador e por remote. args = validadores (RemoteGuard.V).
-local V = Guard.V
-RemoteUtil.REMOTES = {
-	VehicleAction = { interval = 2, burst = 2, args = { V.OneOf("spawn", "despawn", "list"), V.Optional(V.Id) } },
-	RequestPurchase = { interval = 0.5, burst = 2, args = { V.Id } },
-	RobAttempt = { interval = 0.5, burst = 1, args = { V.UserId } },
-	RideStart = { interval = 1, burst = 1, args = {} },
-	RideCancel = { interval = 1, burst = 1, args = {} },
-	ClaimDaily = { interval = 1, burst = 2, args = {} },
-	Revive = { interval = 0.5, burst = 1, args = { V.UserId } },
-	CallMedic = { interval = 30, burst = 1, args = {} }, -- o bind usa Config.CALL_INTERVAL do MedicLogic
-	QuitJob = { interval = 1, burst = 1, args = {} },
-	StoreBuy = { interval = 0.5, burst = 2, args = { V.Id } },
-	AtmAction = { interval = 0.5, burst = 2, args = { V.OneOf("balance", "deposit", "withdraw"), V.Optional(V.Money) } },
-	InteractClose = { interval = 0.5, burst = 2, args = {} },
-	HouseAction = {
-		interval = 0.5,
-		burst = 3,
-		args = { V.OneOf("list", "rent", "buy", "invite", "uninvite"), V.Optional(V.Id), V.Optional(V.UserId) },
-	},
-	BankDeposit = { interval = 0.5, burst = 2, args = { V.Money } },
-	BankWithdraw = { interval = 0.5, burst = 2, args = { V.Money } },
-	BankGet = { interval = 0.5, burst = 3, args = {} },
-	Pix = { interval = 1, burst = 2, args = { V.UserId, V.Money } },
-	Arrest = { interval = 0.5, burst = 1, args = { V.UserId } },
-	SecurityQuery = { interval = 1, burst = 2, args = { V.Optional(V.UserId) } }, -- só admins (SecurityLog)
-}
--- Teto global por jogador, somando todos os remotes (anti-flood).
-RemoteUtil.GLOBAL = { interval = 0.1, burst = 20 }
+-- Rate limit e schema de TODOS os RemoteFunctions: RemoteSpecs (puro, testado com lune).
+RemoteUtil.REMOTES = Specs.Build(Guard.V)
+RemoteUtil.GLOBAL = Specs.GLOBAL
 
 -- Token bucket por jogador: `burst` chamadas seguidas, recarga de 1 a cada `interval` segundos.
 function RemoteUtil.Limiter(interval, burst)
@@ -86,11 +60,7 @@ function RemoteUtil.Limiter(interval, burst)
 	Players.PlayerRemoving:Connect(function(p)
 		buckets[p] = nil
 	end)
-	return function(player)
-		local ok
-		ok, buckets[player] = Guard.Take(buckets[player], os.clock(), interval, burst)
-		return ok
-	end
+	return Guard.Limiter(interval, burst, os.clock, buckets)
 end
 
 -- Validadores de payload vindo do cliente (NaN e infinito recusados).
@@ -109,28 +79,13 @@ function RemoteUtil.BindFunction(name, handler, override)
 	assert(spec, "Remote sem registro em RemoteUtil.REMOTES: " .. tostring(name))
 	local interval = override and override.interval or spec.interval
 	local burst = override and override.burst or spec.burst
-	local rateOk = RemoteUtil.Limiter(interval, burst)
-	RemoteUtil.Get(name, "RemoteFunction").OnServerInvoke = function(player, ...)
-		if not globalOk(player) or not rateOk(player) then
-			SecurityLog.Record(player, "rate_limit", name, "")
-			return false, "RateLimited"
-		end
-		local valid, bad = Guard.Check(spec.args, select("#", ...), { ... })
-		if not valid then
-			RemoteUtil.Flag(player, ("argumento %d inválido"):format(bad), "invalid_payload", name)
-			return false, "Invalid"
-		end
-		-- repassa todos os retornos do handler (ex.: BankDeposit devolve ok, banco, movido)
-		local r = table.pack(pcall(handler, player, ...))
-		if not r[1] then
-			warn(("[Remote] %s falhou: %s"):format(name, tostring(r[2])))
-			return false, "ServerError"
-		end
-		if r[2] == false and r[3] == "Invalid" then
-			RemoteUtil.Flag(player, "payload inválido", "invalid_payload", name)
-		end
-		return table.unpack(r, 2, r.n)
-	end
+	RemoteUtil.Get(name, "RemoteFunction").OnServerInvoke = Guard.Invoker(name, spec.args, handler, {
+		global = globalOk,
+		rate = RemoteUtil.Limiter(interval, burst),
+		record = SecurityLog.Record,
+		flag = RemoteUtil.Flag,
+		log = warn,
+	})
 end
 
 return RemoteUtil
