@@ -80,7 +80,7 @@ local function hook(part)
 end
 
 -- Compra na loja do mapa: só itens da categoria da loja aberta, regra completa em ShopPurchase.
-RemoteUtil.BindFunction("StoreBuy", 0.5, 2, function(player, itemId)
+RemoteUtil.BindFunction("StoreBuy", function(player, itemId)
 	if not RemoteUtil.IsId(itemId) then
 		return false, "Invalid"
 	end
@@ -96,7 +96,7 @@ RemoteUtil.BindFunction("StoreBuy", 0.5, 2, function(player, itemId)
 end)
 
 -- Caixa eletrônico: action = "balance" | "deposit" | "withdraw". Devolve ok, { Wallet, Bank } ou erro.
-RemoteUtil.BindFunction("AtmAction", 0.5, 2, function(player, action, amount)
+RemoteUtil.BindFunction("AtmAction", function(player, action, amount)
 	if action ~= "balance" and action ~= "deposit" and action ~= "withdraw" then
 		return false, "Invalid"
 	end
@@ -126,7 +126,7 @@ RemoteUtil.BindFunction("AtmAction", 0.5, 2, function(player, action, amount)
 	return true, AtmLogic.Response(wallet, bank, moved) -- { Wallet, Bank, Moved }
 end)
 
-RemoteUtil.BindFunction("InteractClose", 0.5, 2, function(player)
+RemoteUtil.BindFunction("InteractClose", function(player)
 	sessions[player] = nil
 	return true
 end)

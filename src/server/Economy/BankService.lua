@@ -139,25 +139,25 @@ function BankService.Pix(from, to, amount)
 end
 
 -- Remotes (caixa eletrônico e celular): 2 chamadas seguidas, 1 a cada 0,5s
-RemoteUtil.BindFunction("BankDeposit", 0.5, 2, function(player, amount)
+RemoteUtil.BindFunction("BankDeposit", function(player, amount)
 	if not validAmount(amount) then
 		return false, "Invalid"
 	end
 	return BankService.Deposit(player, amount)
 end)
 
-RemoteUtil.BindFunction("BankWithdraw", 0.5, 2, function(player, amount)
+RemoteUtil.BindFunction("BankWithdraw", function(player, amount)
 	if not validAmount(amount) then
 		return false, "Invalid"
 	end
 	return BankService.Withdraw(player, amount)
 end)
 
-RemoteUtil.BindFunction("BankGet", 0.5, 3, function(player)
+RemoteUtil.BindFunction("BankGet", function(player)
 	return BankService.GetBank(player)
 end)
 
-RemoteUtil.BindFunction("Pix", 1, 2, function(player, targetUserId, amount)
+RemoteUtil.BindFunction("Pix", function(player, targetUserId, amount)
 	if not RemoteUtil.IsInt(targetUserId, 1) or not validAmount(amount) then
 		return false, "Invalid"
 	end

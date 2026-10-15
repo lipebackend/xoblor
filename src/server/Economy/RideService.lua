@@ -141,11 +141,11 @@ local function tick(player, ride)
 	end
 end
 
-RemoteUtil.BindFunction("RideStart", 1, 1, function(player)
+RemoteUtil.BindFunction("RideStart", function(player)
 	return RideService.Start(player)
 end)
 
-RemoteUtil.BindFunction("RideCancel", 1, 1, function(player)
+RemoteUtil.BindFunction("RideCancel", function(player)
 	if not rides[player] then
 		return false, "NoRide"
 	end

@@ -102,7 +102,7 @@ function VehicleService.List(p)
 	return out
 end
 
-RemoteUtil.BindFunction("VehicleAction", 2, 2, function(p, action, id)
+RemoteUtil.BindFunction("VehicleAction", function(p, action, id)
 	if action == "spawn" then
 		if not RemoteUtil.IsId(id) then
 			return false, "Invalid"
