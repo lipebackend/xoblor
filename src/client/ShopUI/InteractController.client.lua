@@ -33,6 +33,7 @@ local ERR = {
 	AlreadyOwned = "Já tem",
 	WrongStore = "Não vende aqui",
 	Jailed = "Você está preso",
+	Downed = "Você está desmaiado",
 	TooFar = "Chegue mais perto",
 	Expired = "Abra de novo",
 	NoSession = "Abra de novo",

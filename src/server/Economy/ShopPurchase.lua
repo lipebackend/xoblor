@@ -47,9 +47,10 @@ function ShopPurchase.Purchase(player, itemId)
 	if not Economy.IsLoaded(player) then
 		return false, "NotLoaded"
 	end
-	-- preso não compra (menu e lojas do mapa passam por aqui)
-	if not JailState.Allowed(player, "Buy") then
-		return false, "Jailed"
+	-- preso ou desmaiado não compra (menu e lojas do mapa passam por aqui)
+	local blocked = JailState.Block(player, "Buy")
+	if blocked then
+		return false, blocked
 	end
 	if item.RequiredJob and JobService.GetJob(player) ~= item.RequiredJob then
 		return false, "WrongJob"

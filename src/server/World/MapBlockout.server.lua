@@ -71,6 +71,7 @@ local BAIRROS = {
 			tagged(b, "Cadeia", c + Vector3.new(-80, 1, -40), "Jail")
 			tagged(b, "Saida_Delegacia", c + Vector3.new(-50, 1, -15), "JailRelease")
 			tagged(b, "Hospital", c + Vector3.new(50, 1, 0), "JobStation", { JobId = "medico" })
+			tagged(b, "Spawn_Hospital", c + Vector3.new(50, 1, 20), "HospitalSpawn")
 			tagged(b, "Banco_ATM", c + Vector3.new(0, 1, 40), "Shop", { Category = "Banco" })
 			tagged(b, "Spawn_Viatura", c + Vector3.new(-50, 1, 30), "VehicleSpawn")
 			tagged(b, "Entrega_Centro", c + Vector3.new(0, 1, -60), "RideDropoff")

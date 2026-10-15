@@ -5,6 +5,8 @@
 -- Sem dependência de outros serviços, para Job/Shop/Bank/Robbery consultarem sem ciclo de require.
 local Data = require(script.Parent.DataStoreHandler)
 local ArrestLogic = require(script.Parent.ArrestLogic)
+local MedicLogic = require(script.Parent.MedicLogic)
+local DownState = require(script.Parent.DownState)
 
 local JailState = {}
 
@@ -23,6 +25,17 @@ end
 -- Pode fazer `action` ("Rob", "Buy", "Pix", "Job")?
 function JailState.Allowed(player, action)
 	return ArrestLogic.Allowed(action, JailState.IsJailed(player))
+end
+
+-- Bloqueio por cadeia ou desmaio: retorna "Jailed", "Downed" ou nil (pode).
+function JailState.Block(player, action)
+	if not JailState.Allowed(player, action) then
+		return "Jailed"
+	end
+	if not MedicLogic.Allowed(action, DownState.IsDowned(player)) then
+		return "Downed"
+	end
+	return nil
 end
 
 -- Atributo replicado para o timer do cliente (segundos restantes).

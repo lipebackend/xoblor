@@ -106,8 +106,9 @@ function BankService.Pix(from, to, amount)
 	if not extra or not Economy.IsLoaded(to) then
 		return false, "NotLoaded"
 	end
-	if not JailState.Allowed(from, "Pix") then
-		return false, "Jailed"
+	local blocked = JailState.Block(from, "Pix")
+	if blocked then
+		return false, blocked
 	end
 	local now = os.time()
 	if pixUsed(extra, now) + amount > PIX_LIMIT then

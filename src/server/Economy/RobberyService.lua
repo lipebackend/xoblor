@@ -6,6 +6,8 @@ local Data = require(script.Parent.DataStoreHandler)
 local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
 local JailState = require(script.Parent.JailState)
+local DownState = require(script.Parent.DownState)
+local MedicLogic = require(script.Parent.MedicLogic)
 
 local RobberyService = {}
 local MAX_DISTANCE = 8
@@ -92,8 +94,12 @@ function RobberyService.Rob(robber, target)
 	if isPolice(robber) then
 		return false, "SameTeamPolice"
 	end
-	if not JailState.Allowed(robber, "Rob") then
-		return false, "Jailed"
+	local blocked = JailState.Block(robber, "Rob")
+	if blocked then
+		return false, blocked
+	end
+	if not MedicLogic.CanBeRobbed(DownState.IsDowned(target)) then
+		return false, "TargetDowned"
 	end
 	if JailState.IsJailed(target) then
 		return false, "TargetJailed"
