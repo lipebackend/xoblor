@@ -4,9 +4,12 @@ local RunService = game:GetService("RunService")
 local Economy = require(script.Parent.EconomyService)
 local Logic = require(script.Parent.ProfileLogic)
 local SecurityLog = require(script.Parent.SecurityLog)
+local Schedule = require(script.Parent.AutosaveSchedule)
 
 local store = DataStoreService:GetDataStore("EconomyV1")
-local AUTOSAVE = 60
+local AUTOSAVE = 60 -- cada jogador salva a cada 60s, numa fase própria (AutosaveSchedule)
+local AUTOSAVE_TICK = 1 -- resolução do agendador
+local schedule = Schedule.New(AUTOSAVE)
 local RETRIES = 5
 local BACKOFF_BASE, BACKOFF_CAP = 1, 8 -- segundos (com jitter)
 local LOCK_WAIT_TRIES = 5 -- 5 x 5s esperando uma trava viva antes de desistir
@@ -186,6 +189,9 @@ local function load(player)
 	extraData[player] = data.Extra
 	jailData[player] = data.Jail
 	Economy.Init(player, data.Coins)
+	if player.Parent then
+		Schedule.Add(schedule, player, os.clock())
+	end
 end
 
 function Handler.GetExtra(player)
@@ -218,6 +224,7 @@ local function saveAndRelease(p, deadline)
 		return
 	end
 	released[p] = true
+	Schedule.Remove(schedule, p)
 	save(p, true, deadline)
 	Economy.Release(p)
 	extraData[p] = nil
@@ -253,9 +260,14 @@ end)
 
 task.spawn(function()
 	while true do
-		task.wait(AUTOSAVE)
-		for _, p in Players:GetPlayers() do
-			if not closing and not saving[p] then
+		task.wait(AUTOSAVE_TICK)
+		for _, p in Schedule.Due(schedule, os.clock()) do
+			if not p.Parent then
+				Schedule.Remove(schedule, p) -- saiu sem passar pelo saveAndRelease
+				continue
+			end
+			-- saving[p]: já tem save em andamento (SaveNow/saída), pula este ciclo
+			if not closing and not saving[p] and not released[p] then
 				task.spawn(save, p, false)
 			end
 		end
