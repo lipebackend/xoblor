@@ -158,7 +158,7 @@ RemoteUtil.BindFunction("BankGet", function(player)
 end)
 
 RemoteUtil.BindFunction("Pix", function(player, targetUserId, amount)
-	if not RemoteUtil.IsInt(targetUserId, 1) or not validAmount(amount) then
+	if not RemoteUtil.IsUserId(targetUserId) or not validAmount(amount) then
 		return false, "Invalid"
 	end
 	local target = Players:GetPlayerByUserId(targetUserId)

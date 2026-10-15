@@ -117,7 +117,7 @@ function ArrestService.Arrest(cop, target)
 end
 
 RemoteUtil.BindFunction("Arrest", function(cop, targetUserId)
-	if not RemoteUtil.IsInt(targetUserId, 1) or targetUserId == cop.UserId then
+	if not RemoteUtil.IsUserId(targetUserId) or targetUserId == cop.UserId then
 		return false, "Invalid"
 	end
 	local target = Players:GetPlayerByUserId(targetUserId)

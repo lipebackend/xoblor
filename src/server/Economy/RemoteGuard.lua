@@ -109,4 +109,44 @@ function RemoteGuard.Within(a, b, max)
 	return finite(d) and d <= max, d
 end
 
+-- Limitador por jogador (token bucket). buckets: tabela [player] = bucket (o chamador limpa na saída).
+function RemoteGuard.Limiter(interval, burst, clock, buckets)
+	buckets = buckets or {}
+	return function(player)
+		local ok
+		ok, buckets[player] = RemoteGuard.Take(buckets[player], clock(), interval, burst)
+		return ok
+	end,
+		buckets
+end
+
+-- Caminho de um RemoteFunction (OnServerInvoke): rate limit global e por remote, schema, pcall e log.
+-- deps: global(player)/rate(player) -> bool, record(player, event, context, details) (SecurityLog),
+-- flag(player, what, event, context) (strike), log(msg). handler(player, ...) -> ok, res...
+function RemoteGuard.Invoker(name, args, handler, deps)
+	return function(player, ...)
+		-- igual ao de antes: o global conta toda chamada; o balde do remote só se o global passou
+		local g = deps.global(player)
+		if not g or not deps.rate(player) then
+			deps.record(player, "rate_limit", name, "")
+			return false, "RateLimited"
+		end
+		local valid, bad = RemoteGuard.Check(args, select("#", ...), { ... })
+		if not valid then
+			deps.flag(player, ("argumento %d inválido"):format(bad), "invalid_payload", name)
+			return false, "Invalid"
+		end
+		-- repassa todos os retornos do handler (ex.: BankDeposit devolve ok, banco, movido)
+		local r = table.pack(pcall(handler, player, ...))
+		if not r[1] then
+			deps.log(("[Remote] %s falhou: %s"):format(name, tostring(r[2])))
+			return false, "ServerError"
+		end
+		if r[2] == false and r[3] == "Invalid" then
+			deps.flag(player, "payload inválido", "invalid_payload", name)
+		end
+		return table.unpack(r, 2, r.n)
+	end
+end
+
 return RemoteGuard
