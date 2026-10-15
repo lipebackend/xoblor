@@ -70,11 +70,99 @@ return function(T)
 		it("chegou rápido demais (teleporte) não paga", function()
 			eq(R.Check(ride, 0, 1005), "TooFast")
 		end)
-		it("chegada válida", function()
+		it("chegada válida (com percurso)", function()
+			ride.Path = ride.Distance
 			eq(R.Check(ride, R.ARRIVE_RADIUS, 1020), "Arrived")
+			ride.Path = nil
 		end)
 		it("expira", function()
 			eq(R.Check(ride, 0, 1000 + R.RIDE_TIMEOUT), "Expired")
+		end)
+	end)
+
+	local function v(x, y, z)
+		return { X = x, Y = y or 0, Z = z or 0 }
+	end
+	-- dirige em linha reta de 0 até `to` a `speed` studs/s, amostrando a cada 0,5s
+	local function drive(ride, from, to, speed, t0)
+		local t, x = t0, from
+		R.Sample(ride, v(x), t)
+		while x < to do
+			t += 0.5
+			x = math.min(to, x + speed * 0.5)
+			R.Sample(ride, v(x), t)
+		end
+		return t
+	end
+
+	describe("RideLogic.Sample / ShortPath", function()
+		it("corrida normal paga", function()
+			local ride = R.NewRide(1, 600, 0)
+			local t = drive(ride, 0, 600, 40, 0)
+			truthy(math.abs(ride.Path - 600) < 1e-6)
+			eq(R.Check(ride, 0, t), "Arrived")
+		end)
+		it("teleporte e espera: não paga", function()
+			local ride = R.NewRide(1, 600, 0)
+			R.Sample(ride, v(0), 0)
+			R.Sample(ride, v(600), 0.5)
+			for t = 1, 30 do
+				R.Sample(ride, v(600), t)
+			end
+			eq(ride.Jumps, 1)
+			eq(ride.Path, 0)
+			eq(R.Check(ride, 0, 30), "ShortPath")
+		end)
+		it("desvio lento paga", function()
+			local ride = R.NewRide(1, 300, 0)
+			R.Sample(ride, v(0), 0)
+			local t = 0
+			-- vai 200 para o lado e volta, depois segue: percurso > linha reta
+			for z = 5, 200, 5 do
+				t += 0.5
+				R.Sample(ride, v(0, 0, z), t)
+			end
+			for x = 5, 300, 5 do
+				t += 0.5
+				R.Sample(ride, v(x, 0, 200 - math.min(200, x)), t)
+			end
+			truthy(ride.Path > 300)
+			eq(R.Check(ride, 0, t), "Arrived")
+		end)
+		it("speed hack: deslocamento acima do teto conta só o teto", function()
+			local ride = R.NewRide(1, 600, 0)
+			R.Sample(ride, v(0), 0)
+			R.Sample(ride, v(100), 1) -- 100 studs/s; teto = 60*1,25 = 75
+			eq(ride.Path, 75)
+			eq(ride.Jumps, 0)
+		end)
+		it("speed hack o caminho todo não completa o percurso a tempo", function()
+			local ride = R.NewRide(1, 600, 0)
+			local t = drive(ride, 0, 600, 150, 0) -- 150 studs/s: cada amostra conta só 37,5
+			truthy(ride.Path < 0.8 * 600)
+			eq(R.Check(ride, 0, math.max(t, ride.MinTime)), "ShortPath")
+		end)
+		it("salto grande é teleporte (respawn) e não conta", function()
+			local ride = R.NewRide(1, 600, 0)
+			R.Sample(ride, v(0), 0)
+			R.Sample(ride, v(1000), 0.5)
+			eq(ride.Path, 0)
+			eq(ride.Jumps, 1)
+		end)
+		it("sem personagem: próxima amostra só reancora", function()
+			local ride = R.NewRide(1, 600, 0)
+			R.Sample(ride, v(0), 0)
+			R.Sample(ride, nil, 1)
+			R.Sample(ride, v(500), 2)
+			eq(ride.Path, 0)
+			eq(ride.Jumps, 0)
+		end)
+		it("limite: exatamente 80% da linha reta paga", function()
+			local ride = R.NewRide(1, 100, 0)
+			ride.Path = 80
+			eq(R.Check(ride, 0, 20), "Arrived")
+			ride.Path = 79.9
+			eq(R.Check(ride, 0, 20), "ShortPath")
 		end)
 	end)
 end

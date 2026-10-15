@@ -83,6 +83,7 @@ function RideService.Start(player)
 	end
 	local ride = RideLogic.NewRide(i, distances[i], now)
 	ride.Part = points[i]
+	RideLogic.Sample(ride, root.Position, now)
 	rides[player] = ride
 	send(player, "Started")
 	return true, ride.Part.Name
@@ -102,6 +103,7 @@ local function tick(player, ride)
 		return
 	end
 	local root = rootOf(player)
+	RideLogic.Sample(ride, root and root.Position or nil, now)
 	local dist = root and (ride.Part.Position - root.Position).Magnitude or nil
 	local status = RideLogic.Check(ride, dist, now)
 	if status == "Expired" then
@@ -110,6 +112,18 @@ local function tick(player, ride)
 		-- chegou antes do tempo mínimo (teleporte/exploit): anula a corrida sem pagar
 		warn(("[Ride] %d chegou rápido demais (%.1fs)"):format(player.UserId, now - ride.StartedAt))
 		RemoteUtil.Flag(player, "Ride: chegada rápida demais")
+		finish(player, "TooFast")
+	elseif status == "ShortPath" then
+		-- chegou sem percorrer o caminho (teleporte e espera): anula sem pagar
+		warn(
+			("[Ride] %d percurso curto (%.0f de %.0f studs, %d saltos)"):format(
+				player.UserId,
+				ride.Path or 0,
+				ride.Distance or 0,
+				ride.Jumps or 0
+			)
+		)
+		RemoteUtil.Flag(player, "Ride: percurso curto")
 		finish(player, "TooFast")
 	elseif status == "Arrived" then
 		ride.Paying = true -- PayRide pode ceder (checagem de VIP); evita pagar duas vezes

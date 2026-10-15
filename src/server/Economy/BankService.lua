@@ -54,13 +54,18 @@ function BankService.Deposit(player, amount)
 	if not extra then
 		return false, "NotLoaded"
 	end
-	local ok, err = Economy.SpendCoins(player, amount, "bank:deposit")
+	-- Só deposita (e só tira da carteira) o que cabe no banco; banco cheio recusa.
+	local fits = Logic.Fit(extra.Bank, amount, MAX_BANK)
+	if fits <= 0 then
+		return false, "BankFull"
+	end
+	local ok, err = Economy.SpendCoins(player, fits, "bank:deposit")
 	if not ok then
 		return false, err
 	end
-	extra.Bank = math.min(extra.Bank + amount, MAX_BANK)
+	extra.Bank += fits
 	notify(player, extra)
-	return true, extra.Bank
+	return true, extra.Bank, fits -- 3º valor: depositado de fato (como Withdraw/AddCoins)
 end
 
 function BankService.Withdraw(player, amount)
