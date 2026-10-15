@@ -11,6 +11,7 @@ local Economy = require(script.Parent.EconomyService)
 local ShopPurchase = require(script.Parent.ShopPurchase)
 local InteractLogic = require(script.Parent.InteractLogic)
 local Catalog = require(RS.Shared.ShopCatalog)
+local AtmLogic = require(RS.Shared.AtmLogic)
 
 local InteractService = {}
 local openEvent = RemoteUtil.Get("InteractOpen", "RemoteEvent")
@@ -106,23 +107,23 @@ RemoteUtil.BindFunction("AtmAction", 0.5, 2, function(player, action, amount)
 	if not s then
 		return false, err
 	end
-	if action == "deposit" then
-		local ok, res = BankService.Deposit(player, amount)
+	-- Deposit/Withdraw devolvem ok, banco, movido de fato (parcial perto do teto);
+	-- erros: BankFull (banco no teto), WalletFull (carteira no teto), InsufficientFunds...
+	local moved = 0
+	if action == "deposit" or action == "withdraw" then
+		local fn = action == "deposit" and BankService.Deposit or BankService.Withdraw
+		local ok, res, amountMoved = fn(player, amount)
 		if not ok then
 			return false, res
 		end
-	elseif action == "withdraw" then
-		local ok, res = BankService.Withdraw(player, amount)
-		if not ok then
-			return false, res
-		end
+		moved = amountMoved
 	end
 	local okB, bank = BankService.GetBank(player)
 	local okW, wallet = Economy.GetBalance(player)
 	if not (okB and okW) then
 		return false, "NotLoaded"
 	end
-	return true, { Wallet = wallet, Bank = bank }
+	return true, AtmLogic.Response(wallet, bank, moved) -- { Wallet, Bank, Moved }
 end)
 
 RemoteUtil.BindFunction("InteractClose", 0.5, 2, function(player)
