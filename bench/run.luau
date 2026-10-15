@@ -9,6 +9,11 @@ local Move = require("../src/server/Economy/MoveLogic")
 local Guard = require("../src/server/Economy/RemoteGuard")
 local Sec = require("../src/server/Economy/SecurityLogic")
 local Profile = require("../src/server/Economy/ProfileLogic")
+-- AutosaveSchedule vem do #43; sem ele, o cenário escalonado é pulado.
+local okSchedule, Schedule = pcall(require, "../src/server/Economy/AutosaveSchedule")
+if not okSchedule then
+	Schedule = nil
+end
 
 local PLAYERS = tonumber(process.args[1]) or 30
 local TICKS = tonumber(process.args[2]) or 2000
@@ -234,6 +239,37 @@ run("tick com autosave (pior caso)", function(w)
 	remotesAll(w)
 	autosaveAll(w)
 end)
+-- Antes x depois do #43, com a cadência real (cada jogador salva a cada 60 s = 120 ticks).
+-- Os ticks com save aparecem no p99/max; por isso a coluna "max" é a que importa aqui.
+run("autosave 60s: todos no mesmo tick (antes)", function(w, t)
+	sampleAll(w)
+	remotesAll(w)
+	if t % AUTOSAVE_EVERY == 0 then
+		autosaveAll(w)
+	end
+end)
+if Schedule then
+	local function saveOne(w, p)
+		updateAsync(w.store, "Player_" .. p.id, function(old)
+			return Profile.BuildSave(old, "job-bench", w.now, p.coins, p.extra, p.jail, false)
+		end)
+	end
+	run("autosave 60s: escalonado (AutosaveSchedule)", function(w)
+		if not w.schedule then
+			w.schedule = Schedule.New(60)
+			for _, p in w.players do
+				Schedule.Add(w.schedule, p, w.now)
+			end
+		end
+		sampleAll(w)
+		remotesAll(w)
+		for _, p in Schedule.Due(w.schedule, w.now) do
+			saveOne(w, p)
+		end
+	end)
+else
+	print("(AutosaveSchedule ausente: cenário escalonado pulado; precisa do #43)")
+end
 
 print(
 	("xoblor bench: %d jogadores, %d ticks (+%d warmup), tick = %.1fs de jogo, autosave a cada %d ticks"):format(
