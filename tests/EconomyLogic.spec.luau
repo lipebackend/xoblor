@@ -177,6 +177,28 @@ return function(T)
 		end)
 	end)
 
+	describe("EconomyLogic.Fit (depósito perto do teto)", function()
+		it("cabe tudo", function()
+			eq(E.Fit(0, 500, MAX), 500)
+		end)
+		it("só o que cabe", function()
+			eq(E.Fit(MAX - 100, 500, MAX), 100)
+		end)
+		it("banco cheio: 0 (BankFull no serviço)", function()
+			eq(E.Fit(MAX, 500, MAX), 0)
+		end)
+		it("depositado + sobra na carteira = valor pedido (nada some)", function()
+			for _, bank in { 0, MAX - 1, MAX - 499, MAX } do
+				local fits = E.Fit(bank, 500, MAX)
+				eq(fits + (500 - fits), 500)
+				T.truthy(bank + fits <= MAX)
+			end
+		end)
+		it("teto padrão é MAX_BALANCE", function()
+			eq(E.Fit(MAX - 1, 10), 1)
+		end)
+	end)
+
 	describe("EconomyLogic.PixUsed", function()
 		it("soma só a janela e descarta o resto", function()
 			local log = { { t = 0, v = 1000 }, { t = 3000, v = 200 }, { t = 3500, v = 300 } }
