@@ -157,7 +157,7 @@ function MedicService.Revive(medic, target)
 end
 
 RemoteUtil.BindFunction("Revive", function(medic, targetUserId)
-	if not RemoteUtil.IsInt(targetUserId, 1) or targetUserId == medic.UserId then
+	if not RemoteUtil.IsUserId(targetUserId) or targetUserId == medic.UserId then
 		return false, "Invalid"
 	end
 	local target = Players:GetPlayerByUserId(targetUserId)

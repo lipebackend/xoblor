@@ -4,6 +4,8 @@
 -- Como adicionar: coloque o UserId (número, não o nome) na lista e publique o jogo de novo.
 -- Onde achar o UserId: no perfil roblox.com/users/<UserId>/profile (o número na URL),
 -- ou no Studio, com o jogador no jogo: print(game.Players.<Nome>.UserId) na barra de comandos.
+-- No Studio (Test com vários jogadores) os jogadores locais têm UserId negativo (Player1 = -1,
+-- Player2 = -2, ...). Negativos só valem no Studio: pode pôr -1 aqui para testar, em produção é ignorado.
 return {
 	ADMIN_USER_IDS = {
 		-- 123456789, -- exemplo: Fulano (dono do jogo)

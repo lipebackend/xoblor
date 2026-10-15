@@ -230,7 +230,7 @@ RemoteUtil.BindFunction("HouseAction", function(p, action, id, arg)
 	elseif action == "buy" then
 		return HouseService.Buy(p, id)
 	elseif action == "invite" or action == "uninvite" then
-		if not RemoteUtil.IsInt(arg, 1) or arg == p.UserId then
+		if not RemoteUtil.IsUserId(arg) or arg == p.UserId then
 			return false, "Invalid"
 		end
 		return HouseService.Invite(p, id, arg, action == "invite")
