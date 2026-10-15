@@ -1,5 +1,12 @@
 -- Benchmark de carga (lune): custo por tick do servidor com N jogadores simulados.
--- Uso: lune run bench/run.luau [jogadores] [ticks]   (ou ./setup.sh bench)
+-- Uso: lune run bench/run.luau [jogadores] [ticks] [flags]   (ou ./setup.sh bench ...)
+-- Flags (modo CI, ver docs/BENCH.md):
+--   --ci                  sai com código != 0 se um limite estourar e imprime linhas BENCH_RESULT (JSON)
+--   --p95-ms=X            limite de p95 por cenário (padrão 1); --no-p95 desliga essa checagem
+--   --stagger-max-ms=X    limite do max no cenário de autosave escalonado (padrão: sem checagem)
+--   --only-stagger        roda só o cenário escalonado (mais rápido para a checagem de max)
+-- Códigos de saída com --ci: 0 ok, 1 p95 estourou, 2 max do escalonado estourou,
+--   3 checagem do escalonado pedida mas AutosaveSchedule ausente.
 -- Mede só as regras puras (MoveLogic, RemoteGuard, SecurityLogic, ProfileLogic) e um
 -- DataStore falso; APIs do Roblox (Vector3, Players, rede, DataStore real) não entram.
 local process = require("@lune/process")
@@ -15,12 +22,29 @@ if not okSchedule then
 	Schedule = nil
 end
 
-local PLAYERS = tonumber(process.args[1]) or 30
-local TICKS = tonumber(process.args[2]) or 2000
+local positional, flags = {}, {}
+for _, a in process.args do
+	local k, v = a:match("^%-%-([%w%-]+)=(.*)$")
+	if k then
+		flags[k] = v
+	elseif a:sub(1, 2) == "--" then
+		flags[a:sub(3)] = true
+	else
+		table.insert(positional, a)
+	end
+end
+local CI = flags.ci == true or process.env.XOBLOR_BENCH_CI == "1"
+local P95_MS = tonumber(flags["p95-ms"]) or 1
+local CHECK_P95 = flags["no-p95"] == nil
+local STAGGER_MAX_MS = tonumber(flags["stagger-max-ms"])
+local ONLY_STAGGER = flags["only-stagger"] ~= nil
+
+local PLAYERS = tonumber(positional[1]) or 30
+local TICKS = tonumber(positional[2]) or 2000
 local WARMUP = 200
 local TICK_DT = Move.Config.SAMPLE_INTERVAL -- 1 tick = 0,5 s de jogo (uma amostra de movimento)
 local AUTOSAVE_EVERY = math.floor(60 / TICK_DT) -- autosave de todos a cada 60 s (DataStoreHandler)
-local BUDGET_MS = 1
+local BUDGET_MS = P95_MS
 
 local V = Guard.V
 -- Mesmos schemas de RemoteUtil.REMOTES (amostra representativa).
@@ -208,6 +232,9 @@ end
 
 local results = {}
 local function run(label, fn)
+	if ONLY_STAGGER and not label:find("escalonado", 1, true) then
+		return
+	end
 	local w = newWorld()
 	w.lines, w.bytes = 0, 0
 	loadAll(w)
@@ -285,11 +312,48 @@ local over = false
 for _, r in results do
 	local l, s = r[1], r[2]
 	print(("%-46s %9.4f %9.4f %9.4f %9.4f %9.4f"):format(l, s.median, s.p95, s.p99, s.max, s.mean))
-	if s.p95 > BUDGET_MS then
+	if CHECK_P95 and s.p95 > BUDGET_MS then
 		over = true
+	end
+	if CI then
+		print("BENCH_RESULT " .. serde.encode("json", {
+			scenario = l,
+			players = PLAYERS,
+			ticks = TICKS,
+			median = s.median,
+			p95 = s.p95,
+			p99 = s.p99,
+			max = s.max,
+		}))
 	end
 end
 print(
 	over and ("ATENÇÃO: algum cenário passou de %d ms no p95"):format(BUDGET_MS)
 		or ("OK: todos abaixo de %d ms no p95"):format(BUDGET_MS)
 )
+
+local staggerLabel = "autosave 60s: escalonado (AutosaveSchedule)"
+local code = 0
+if STAGGER_MAX_MS then
+	local found
+	for _, r in results do
+		if r[1] == staggerLabel then
+			found = r[2]
+		end
+	end
+	if not found then
+		print("FALHA: --stagger-max-ms pedido, mas AutosaveSchedule não existe (cenário escalonado não rodou)")
+		code = 3
+	elseif found.max > STAGGER_MAX_MS then
+		print(("FALHA: max do autosave escalonado = %.4f ms > %.4f ms"):format(found.max, STAGGER_MAX_MS))
+		code = 2
+	else
+		print(("OK: max do autosave escalonado = %.4f ms <= %.4f ms"):format(found.max, STAGGER_MAX_MS))
+	end
+end
+if CHECK_P95 and over and code == 0 then
+	code = 1
+end
+if CI then
+	process.exit(code)
+end
