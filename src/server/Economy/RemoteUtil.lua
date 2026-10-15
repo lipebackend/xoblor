@@ -1,11 +1,13 @@
 -- Remotes em ReplicatedStorage.Remotes com rate limit (token bucket), validação e log de abuso.
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Guard = require(script.Parent.RemoteGuard)
 local SecurityLog = require(script.Parent.SecurityLog)
 local SecurityLogic = require(script.Parent.SecurityLogic)
 
 local RemoteUtil = {}
+Guard.SetStudio(RunService:IsStudio()) -- UserIds negativos só no Studio
 local folder = ReplicatedStorage:WaitForChild("Remotes")
 
 local MAX_STRIKES = 30 -- chamadas recusadas por janela antes de expulsar
@@ -94,6 +96,9 @@ end
 -- Validadores de payload vindo do cliente (NaN e infinito recusados).
 RemoteUtil.IsInt = Guard.IsInt
 RemoteUtil.IsId = Guard.IsId
+function RemoteUtil.IsUserId(v)
+	return Guard.IsUserId(v, Guard.Studio)
+end
 
 local globalOk = RemoteUtil.Limiter(RemoteUtil.GLOBAL.interval, RemoteUtil.GLOBAL.burst)
 

@@ -2,6 +2,7 @@
 -- grava uma linha estruturada (warn, com throttle) e soma contadores por jogador na sessão.
 -- Não expulsa ninguém. Consulta: remote SecurityQuery, só para AdminConfig.ADMIN_USER_IDS.
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local Logic = require(script.Parent.SecurityLogic)
 local Config = require(script.Parent.AdminConfig)
 
@@ -25,7 +26,7 @@ function SecurityLog.Counters(userId)
 end
 
 function SecurityLog.IsAdmin(player)
-	return typeof(player) == "Instance" and Logic.IsAdmin(Config.ADMIN_USER_IDS, player.UserId)
+	return typeof(player) == "Instance" and Logic.IsAdmin(Config.ADMIN_USER_IDS, player.UserId, RunService:IsStudio())
 end
 
 -- Resposta do SecurityQuery: { [userId] = { [event] = n } } de um jogador ou de todos os online.
