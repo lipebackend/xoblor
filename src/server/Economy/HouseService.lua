@@ -149,6 +149,7 @@ local function hookHouse(m)
 	prompt.Triggered:Connect(function(p)
 		local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
 		if hrp and inside and HouseService.CanEnter(p, id) then
+			require(script.Parent.MovementService).AllowTeleport(p) -- entrar em casa
 			hrp.CFrame = inside.CFrame + Vector3.new(0, 3, 0)
 		end
 	end)

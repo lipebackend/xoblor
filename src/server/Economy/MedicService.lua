@@ -111,6 +111,7 @@ function MedicService.Hospital(player)
 	wake(player, true)
 	local spot = hospitalSpot()
 	if spot and player.Character then
+		require(script.Parent.MovementService).AllowTeleport(player) -- hospital
 		player.Character:PivotTo(spot.CFrame + Vector3.new(0, 4, 0))
 	end
 	warn(("[Medic] %d foi ao hospital, taxa %d"):format(player.UserId, fee))
@@ -120,6 +121,9 @@ end
 function MedicService.Revive(medic, target)
 	if typeof(target) ~= "Instance" or not target:IsA("Player") or target == medic then
 		return false, "Invalid"
+	end
+	if require(script.Parent.MovementService).IsBlocked(medic) then
+		return false, "MovementCheck" -- salto impossível recente
 	end
 	if not (Economy.IsLoaded(medic) and Economy.IsLoaded(target)) then
 		return false, "NotLoaded"

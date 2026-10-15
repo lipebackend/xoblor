@@ -31,6 +31,7 @@ end
 local function teleport(player, tag)
 	local root, part = rootOf(player), spot(tag)
 	if root and part then
+		require(script.Parent.MovementService).AllowTeleport(player) -- cadeia/soltura
 		player.Character:PivotTo(part.CFrame + Vector3.new(0, 4, 0))
 		return true
 	end
@@ -43,6 +44,9 @@ end
 function ArrestService.Arrest(cop, target)
 	if typeof(target) ~= "Instance" or not target:IsA("Player") or target == cop then
 		return false, "Invalid"
+	end
+	if require(script.Parent.MovementService).IsBlocked(cop) then
+		return false, "MovementCheck" -- salto impossível recente
 	end
 	if not (Economy.IsLoaded(cop) and Economy.IsLoaded(target)) then
 		return false, "NotLoaded"
