@@ -81,15 +81,16 @@ function RemoteUtil.BindFunction(name, interval, burst, handler)
 		if not rateOk(player) then
 			return false, "RateLimited"
 		end
-		local ok, a, b = pcall(handler, player, ...)
-		if not ok then
-			warn(("[Remote] %s falhou: %s"):format(name, tostring(a)))
+		-- repassa todos os retornos do handler (ex.: BankDeposit devolve ok, banco, movido)
+		local r = table.pack(pcall(handler, player, ...))
+		if not r[1] then
+			warn(("[Remote] %s falhou: %s"):format(name, tostring(r[2])))
 			return false, "ServerError"
 		end
-		if a == false and b == "Invalid" then
+		if r[2] == false and r[3] == "Invalid" then
 			RemoteUtil.Flag(player, name .. ": payload inválido")
 		end
-		return a, b
+		return table.unpack(r, 2, r.n)
 	end
 end
 

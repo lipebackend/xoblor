@@ -4,6 +4,7 @@ local RS = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Catalog = require(RS:WaitForChild("Shared"):WaitForChild("ShopCatalog"))
 local JobCatalog = require(RS.Shared:WaitForChild("JobCatalog"))
+local AtmLogic = require(RS.Shared:WaitForChild("AtmLogic"))
 local Remotes = RS:WaitForChild("Remotes")
 local me = Players.LocalPlayer
 local gui = script.Parent
@@ -39,9 +40,9 @@ local function button(text, parent, cb)
 	end)
 	return b
 end
-local function flash(b, msg, original)
+local function flash(b, msg, original, seconds)
 	b.Text = msg
-	task.delay(1.5, function()
+	task.delay(seconds or 1.5, function()
 		if b.Parent then
 			b.Text = original
 		end
@@ -242,12 +243,25 @@ local function renderPhone()
 	})
 	local amt = input("Valor (R$)", phone)
 	button("Depositar", phone, function(b)
-		local ok, res = remote("BankDeposit"):InvokeServer(num(amt))
-		flash(b, ok and "Depositado" or err(res), "Depositar")
+		-- servidor: ok, banco, movido de fato (parcial perto do teto) | false, código (BankFull...)
+		local requested = num(amt)
+		local ok, res, moved = remote("BankDeposit"):InvokeServer(requested)
+		flash(
+			b,
+			ok and AtmLogic.SuccessMessage("deposit", requested, moved, R) or AtmLogic.ErrorMessage(res),
+			"Depositar",
+			3
+		)
 	end)
 	button("Sacar", phone, function(b)
-		local ok, res = remote("BankWithdraw"):InvokeServer(num(amt))
-		flash(b, ok and "Sacado" or err(res), "Sacar")
+		local requested = num(amt)
+		local ok, res, moved = remote("BankWithdraw"):InvokeServer(requested)
+		flash(
+			b,
+			ok and AtmLogic.SuccessMessage("withdraw", requested, moved, R) or AtmLogic.ErrorMessage(res),
+			"Sacar",
+			3
+		)
 	end)
 	-- Pix
 	title("⚡ Pix", phone)
