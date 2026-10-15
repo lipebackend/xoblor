@@ -47,3 +47,7 @@ Só os UserIds de `src/server/Economy/AdminConfig.lua` podem consultar esses con
 git tag v0.1.0
 git push origin v0.1.0
 ```
+
+## Benchmark
+
+`./setup.sh bench` roda um benchmark de carga com lune (30 jogadores simulados: movimento, remotes, SecurityLog e autosave). O que é medido e os resultados estão em [docs/BENCH.md](docs/BENCH.md). Não roda no CI.
