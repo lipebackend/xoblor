@@ -3,7 +3,7 @@
 local AfkLogic = {}
 
 function AfkLogic.New(now)
-	return { lastActive = now, anchor = nil }
+	return { lastActive = now, lastMove = now, anchor = nil }
 end
 
 local function distance(a, b)
@@ -37,9 +37,19 @@ function AfkLogic.Observe(s, pos, now, cfg)
 	if distance(pos, s.anchor) > cfg.MOVE_THRESHOLD then
 		s.anchor = pos
 		AfkLogic.MarkActive(s, now)
+		if now > s.lastMove then
+			s.lastMove = now
+		end
 		return true
 	end
 	return false
+end
+
+-- Interação real da lista permitida (AfkConfig.INTERACTIONS). Só estende a atividade até
+-- INTERACTION_ONLY_MAX segundos depois do último movimento: parado e repetindo um prompt,
+-- o jogador fica ativo por no máximo INTERACTION_ONLY_MAX + TIMEOUT.
+function AfkLogic.MarkInteraction(s, now, cfg)
+	AfkLogic.MarkActive(s, math.min(now, s.lastMove + cfg.INTERACTION_ONLY_MAX))
 end
 
 -- Sinal auxiliar (Player.Idled): só pode tornar o jogador mais inativo, nunca mais ativo.
