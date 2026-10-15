@@ -14,6 +14,7 @@ for _, name in
 		"MedicLogic.spec",
 		"SalaryLogic.spec",
 		"ProfileLogic.spec",
+		"AtmLogic.spec",
 	}
 do
 	require("./" .. name)(T)

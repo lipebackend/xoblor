@@ -1,6 +1,7 @@
 -- Painel das lojas e caixas eletrônicos do mapa (InteractService). Só exibe; o servidor decide tudo.
 local RS = game:GetService("ReplicatedStorage")
 local Catalog = require(RS:WaitForChild("Shared"):WaitForChild("ShopCatalog"))
+local AtmLogic = require(RS.Shared:WaitForChild("AtmLogic"))
 local Remotes = RS:WaitForChild("Remotes")
 local gui = script.Parent
 local R = Catalog.FormatReais
@@ -91,9 +92,9 @@ local function button(text, cb, color)
 	end)
 	return b
 end
-local function flash(b, msg, original)
+local function flash(b, msg, original, seconds)
 	b.Text = msg
-	task.delay(1.5, function()
+	task.delay(seconds or 1.5, function()
 		if b.Parent then
 			b.Text = original
 		end
@@ -155,12 +156,13 @@ local function renderAtm(data)
 	})
 	local function act(action, b, original)
 		local n = tonumber(box.Text)
-		local ok, res = atmAction:InvokeServer(action, n and math.floor(n) or nil)
+		local requested = n and math.floor(n) or nil
+		local ok, res = atmAction:InvokeServer(action, requested)
 		if ok and type(res) == "table" then
 			show(res.Wallet, res.Bank)
-			flash(b, "Feito!", original)
+			flash(b, AtmLogic.SuccessMessage(action, requested, res.Moved, R), original, 3)
 		else
-			flash(b, err(res), original)
+			flash(b, AtmLogic.ErrorMessage(res), original, 3)
 		end
 	end
 	button("Depositar", function(b)
