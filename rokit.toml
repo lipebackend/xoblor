@@ -1,6 +1,8 @@
 # Ferramentas do projeto, gerenciadas pelo Rokit (https://github.com/rojo-rbx/rokit).
 # Instale com: rokit install
+# As mesmas versões (com sha256) estão em scripts/install-tools.sh, usado pela CI e pelo setup.sh. Mantenha os dois em sincronia.
 [tools]
 rojo = "rojo-rbx/rojo@7.4.4"
 selene = "Kampfkarren/selene@0.32.0"
 stylua = "JohnnyMorganz/StyLua@2.6.0"
+lune = "lune-org/lune@0.11.0"

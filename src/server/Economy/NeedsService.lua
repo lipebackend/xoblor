@@ -4,8 +4,8 @@ local Players = game:GetService("Players")
 local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local Logic = require(script.Parent.NeedsLogic)
 
-local MAX_NEED = 100
 local HUNGER_DECAY_INTERVAL = 30 -- segundos para perder 1 de fome
 local ENERGY_DECAY_INTERVAL = 45 -- segundos para perder 1 de energia
 local DEFAULT_WALKSPEED = 16 -- usado se não houver atributo BaseWalkSpeed (Humanoid, depois Player)
@@ -15,17 +15,7 @@ local NeedsService = {}
 local needsChanged = RemoteUtil.Get("NeedsChanged", "RemoteEvent")
 local announced = {} -- [player] = true depois do primeiro envio
 
-local function clamp(n)
-	n = tonumber(n)
-	if n == nil or n ~= n then
-		return MAX_NEED
-	end
-	return math.clamp(math.floor(n), 0, MAX_NEED)
-end
-
-local function validDelta(n)
-	return type(n) == "number" and n == n and n % 1 == 0 and math.abs(n) <= 1e6
-end
+local clamp, validDelta = Logic.Clamp, Logic.ValidDelta
 
 local penalized = {} -- [player] = WalkSpeed que nós aplicamos
 
@@ -46,7 +36,7 @@ local function applyEffect(player, extra)
 	if not hum then
 		return
 	end
-	local exhausted = extra.Hunger <= 0 or extra.Energy <= 0
+	local exhausted = Logic.IsExhausted(extra.Hunger, extra.Energy)
 	local base = baseSpeed(player, hum)
 	if exhausted then
 		local slow = base * EXHAUSTED_FACTOR
@@ -100,7 +90,7 @@ local function add(field, player, n)
 	if not extra then
 		return false, "NotLoaded"
 	end
-	local value = math.clamp(extra[field] + n, 0, MAX_NEED)
+	local value = Logic.Apply(extra[field], n)
 	if value ~= extra[field] then
 		extra[field] = value
 		notify(player, extra)
