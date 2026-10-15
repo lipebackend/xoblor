@@ -31,10 +31,27 @@ jobs:
           echo "$PWD/.tools" >> "$GITHUB_PATH"
 
       - name: Verificar formatação (StyLua)
-        run: stylua --check src --verbose
+        run: stylua --check src tests --verbose
 
       - name: Lint (selene)
         run: selene --version && selene src
+
+  test:
+    name: Test (lune)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar ferramentas (versões fixas + sha256)
+        run: |
+          ./scripts/install-tools.sh
+          echo "$PWD/.tools" >> "$GITHUB_PATH"
+
+      - name: Testes unitários (lune)
+        run: lune --version && lune run tests/run.luau
 
   build:
     name: Build (Rojo)
