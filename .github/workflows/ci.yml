@@ -26,9 +26,9 @@ jobs:
       matrix:
         include:
           - name: Lint (selene)
-            run: selene --version && selene src
+            run: selene --version && selene src $(test -d bench && echo bench) # bench/ (#42) se existir
           - name: Format (StyLua)
-            run: stylua --version && stylua --check src tests
+            run: stylua --version && stylua --check src tests $(test -d bench && echo bench) # bench/ (#42) se existir
           - name: Test (lune)
             run: lune --version && lune run tests/run.luau
     steps:
