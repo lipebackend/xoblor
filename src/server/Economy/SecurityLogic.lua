@@ -118,8 +118,16 @@ function SecurityLogic.ShouldEmit(throttle, userId, event, now, window)
 end
 
 -- Admin = UserId inteiro presente na lista (array de números). Lista vazia = ninguém.
-function SecurityLogic.IsAdmin(allowlist, userId)
-	if type(userId) ~= "number" or userId ~= userId or userId % 1 ~= 0 or userId <= 0 then
+-- Mesma regra do RemoteGuard.IsUserId: != 0; negativos (jogadores locais) só com `studio`.
+function SecurityLogic.IsAdmin(allowlist, userId, studio)
+	if
+		type(userId) ~= "number"
+		or userId ~= userId
+		or userId % 1 ~= 0
+		or userId == 0
+		or math.abs(userId) > 2 ^ 53
+		or (userId < 0 and studio ~= true)
+	then
 		return false
 	end
 	for _, id in allowlist or {} do
