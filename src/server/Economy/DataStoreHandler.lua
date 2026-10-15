@@ -5,6 +5,7 @@ local Economy = require(script.Parent.EconomyService)
 local Logic = require(script.Parent.ProfileLogic)
 local SecurityLog = require(script.Parent.SecurityLog)
 local Schedule = require(script.Parent.AutosaveSchedule)
+local Retry = require(script.Parent.DataStoreRetry)
 
 local store = DataStoreService:GetDataStore("EconomyV1")
 local AUTOSAVE = 60 -- cada jogador salva a cada 60s, numa fase própria (AutosaveSchedule)
@@ -28,34 +29,23 @@ local function key(p)
 	return "Player_" .. p.UserId
 end
 
--- Espera orçamento de UpdateAsync (até o prazo), para não estourar o limite e cair na fila.
-local function waitBudget(deadline)
-	while DataStoreService:GetRequestBudgetForRequestType(UPDATE) < 1 do
-		if os.clock() >= deadline then
-			return
-		end
-		task.wait(0.5)
-	end
-end
-
--- Repete com backoff exponencial + jitter, sem passar do prazo (BindToClose usa um prazo curto).
+-- Repetição com backoff exponencial + jitter, sem passar do prazo (BindToClose usa um prazo curto).
+-- Antes de cada tentativa espera orçamento de UpdateAsync (até o prazo ou 30s). Regras em DataStoreRetry.
+local retryEnv = {
+	attempts = RETRIES,
+	base = BACKOFF_BASE,
+	cap = BACKOFF_CAP,
+	clock = os.clock,
+	wait = task.wait,
+	budget = function()
+		return DataStoreService:GetRequestBudgetForRequestType(UPDATE)
+	end,
+	backoff = Logic.Backoff,
+	rand = math.random,
+	log = warn,
+}
 local function retry(fn, deadline)
-	deadline = deadline or math.huge
-	local ok, res
-	for i = 1, RETRIES do
-		waitBudget(deadline)
-		ok, res = pcall(fn)
-		if ok then
-			return true, res
-		end
-		warn("[DataStore] tentativa " .. i .. " falhou: " .. tostring(res))
-		local delay = Logic.Backoff(i, BACKOFF_BASE, BACKOFF_CAP, math.random)
-		if i == RETRIES or os.clock() + delay >= deadline then
-			break
-		end
-		task.wait(delay)
-	end
-	return false, res
+	return Retry.Run(fn, retryEnv, deadline)
 end
 
 local function pruneReceipts(extra)
