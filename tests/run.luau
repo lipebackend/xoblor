@@ -19,6 +19,7 @@ for _, name in
 		"AtmLogic.spec",
 		"SecurityLogic.spec",
 		"AutosaveSchedule.spec",
+		"DataStoreFailures.spec",
 	}
 do
 	require("./" .. name)(T)

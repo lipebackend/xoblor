@@ -11,6 +11,7 @@ SecurityLogic.EVENTS = {
 	flag = true, -- outras suspeitas (corrida, Pix acima do limite)
 	admin_denied = true, -- não-admin tentou consultar a telemetria
 	kick = true, -- expulso por strikes (RemoteUtil.Flag), registrado ANTES do Kick
+	save_failed = true, -- save do perfil desistiu após todas as tentativas/prazo (DataStoreHandler)
 }
 
 -- Strikes do RemoteUtil.Flag: janela fixa de `window` s a partir do primeiro strike.
