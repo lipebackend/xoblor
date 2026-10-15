@@ -36,6 +36,11 @@ function EconomyLogic.Add(balance, amount)
 	return true, balance + credited, credited
 end
 
+-- Quanto de `amount` cabe num saldo com teto `max` (banco usa o mesmo teto da carteira).
+function EconomyLogic.Fit(balance, amount, max)
+	return math.max(0, math.min(amount, (max or EconomyLogic.MAX_BALANCE) - balance))
+end
+
 -- Divide um crédito pago (Robux) entre carteira e banco, sem perder nada que caiba.
 -- Retorna paraCarteira, paraBanco, perdido (perdido só > 0 se os dois estiverem no teto).
 function EconomyLogic.SplitCredit(wallet, bank, amount)
