@@ -103,7 +103,7 @@ local function pickRemote()
 	return REMOTES[1]
 end
 
-local function argsFor(w, spec, p, bad)
+local function argsFor(w, spec, bad)
 	local other = w.players[rng:NextInteger(1, PLAYERS)].id
 	if bad then
 		return 0 / 0, "x\u{2028}y" -- NaN e lixo
@@ -138,7 +138,7 @@ local function remotesAll(w)
 		local n = p.abuser and 15 or (rng:NextNumber() < 0.6 and 1 or 2)
 		for _ = 1, n do
 			local spec = pickRemote()
-			callRemote(w, p, spec, argsFor(w, spec, p, p.abuser and rng:NextNumber() < 0.33))
+			callRemote(w, p, spec, argsFor(w, spec, p.abuser and rng:NextNumber() < 0.33))
 		end
 		Move.IsBlocked(p.move, w.now) -- ações físicas consultam o bloqueio
 	end
