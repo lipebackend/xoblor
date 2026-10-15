@@ -334,6 +334,7 @@ task.spawn(function()
 		end
 		task.wait(0.5)
 	end
+end)
 
 -- Corridas de mototaxi (RideService) ---------------------------------------
 -- Botão só aparece no time Mototaxistas; o servidor confere tudo de novo.
