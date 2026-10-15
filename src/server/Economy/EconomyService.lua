@@ -46,13 +46,15 @@ function EconomyService.GetBalance(player)
 	return true, b
 end
 
+-- Retorna true, novo saldo, valor creditado (pode ser < amount perto do teto) ou false, erro.
+-- Carteira já no teto: false, "WalletFull".
 function EconomyService.AddCoins(player, amount, reason)
-	local ok, new = Logic.Add(balances[player], amount)
+	local ok, new, credited = Logic.Add(balances[player], amount)
 	if not ok then
 		return false, new
 	end
 	setBalance(player, new, reason or "add")
-	return true, new
+	return true, new, credited
 end
 
 function EconomyService.SpendCoins(player, amount, reason)

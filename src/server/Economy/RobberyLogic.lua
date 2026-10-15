@@ -29,8 +29,16 @@ function RobberyLogic.Check(robberState, targetState, now, robberIsPolice)
 	return nil
 end
 
-function RobberyLogic.Amount(wallet, pct)
-	return math.min(math.floor(wallet * pct / 100), RobberyLogic.MAX_ROB)
+local MAX_BALANCE = 1e12 -- mesmo teto de EconomyLogic.MAX_BALANCE
+
+-- Valor do assalto: pct da carteira da vítima, até MAX_ROB, e só o que cabe na carteira do ladrão
+-- (robberWallet opcional). A vítima perde exatamente esse valor.
+function RobberyLogic.Amount(wallet, pct, robberWallet)
+	local amount = math.min(math.floor(wallet * pct / 100), RobberyLogic.MAX_ROB)
+	if robberWallet ~= nil then
+		amount = math.min(amount, math.max(MAX_BALANCE - robberWallet, 0))
+	end
+	return amount
 end
 
 function RobberyLogic.ApplySuccess(robberState, targetState, now)

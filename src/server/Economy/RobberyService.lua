@@ -6,6 +6,7 @@ local Data = require(script.Parent.DataStoreHandler)
 local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
 local Logic = require(script.Parent.RobberyLogic)
+local EconomyLogic = require(script.Parent.EconomyLogic)
 
 local RobberyService = {}
 local MAX_DISTANCE = Logic.MAX_DISTANCE
@@ -89,18 +90,26 @@ function RobberyService.Rob(robber, target)
 	if not ok then
 		return false, "NotLoaded"
 	end
-	local amount = Logic.Amount(wallet, math.random(Logic.MIN_PCT, Logic.MAX_PCT))
+	local okR, robberWallet = Economy.GetBalance(robber)
+	if not okR then
+		return false, "NotLoaded"
+	end
+	local amount = Logic.Amount(wallet, math.random(Logic.MIN_PCT, Logic.MAX_PCT), robberWallet)
 	if amount < 1 then
-		return false, "TargetEmpty"
+		return false, wallet > 0 and robberWallet >= EconomyLogic.MAX_BALANCE and "RobberFull" or "TargetEmpty"
 	end
 	local spent, err = Economy.SpendCoins(target, amount, "robbery")
 	if not spent then
 		return false, err == "InsufficientFunds" and "TargetEmpty" or err
 	end
-	local added, addErr = Economy.AddCoins(robber, amount, "robbery")
-	if not added then
-		Economy.AddCoins(target, amount, "robbery:refund")
-		return false, addErr
+	local added, addErr, credited = Economy.AddCoins(robber, amount, "robbery")
+	if not added or credited < amount then
+		-- não deveria acontecer (amount já cabe no ladrão); devolve a diferença à vítima
+		Economy.AddCoins(target, added and amount - credited or amount, "robbery:refund")
+		if not added then
+			return false, addErr
+		end
+		amount = credited
 	end
 	Logic.ApplySuccess(rs, ts, now)
 	warn(("[Robbery] %d roubou %d de %d"):format(robber.UserId, amount, target.UserId))

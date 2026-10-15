@@ -73,14 +73,28 @@ function BankService.Withdraw(player, amount)
 	if extra.Bank < amount then
 		return false, "InsufficientFunds"
 	end
-	extra.Bank -= amount
-	local ok, err = Economy.AddCoins(player, amount, "bank:withdraw")
+	-- Só debita do banco o que coube na carteira (perto do teto o saque é parcial).
+	local ok, err, credited = Economy.AddCoins(player, amount, "bank:withdraw")
 	if not ok then
-		extra.Bank += amount
 		return false, err
 	end
+	extra.Bank -= credited
 	notify(player, extra)
-	return true, extra.Bank
+	return true, extra.Bank, credited
+end
+
+-- Crédito direto no banco (usado pelo excedente de compras com Robux). Retorna o valor creditado.
+function BankService.CreditBank(player, amount)
+	local extra = extraOf(player)
+	if not extra or not RemoteUtil.IsInt(amount, 0, MAX_BANK) then
+		return 0
+	end
+	local credited = math.min(amount, MAX_BANK - extra.Bank)
+	if credited > 0 then
+		extra.Bank += credited
+		notify(player, extra)
+	end
+	return credited
 end
 
 local function pixUsed(extra, now)
