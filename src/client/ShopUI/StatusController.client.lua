@@ -334,4 +334,109 @@ task.spawn(function()
 		end
 		task.wait(0.5)
 	end
+
+-- Corridas de mototaxi (RideService) ---------------------------------------
+-- Botão só aparece no time Mototaxistas; o servidor confere tudo de novo.
+task.spawn(function()
+	local start = Remotes:WaitForChild("RideStart", 60)
+	local rideState = Remotes:WaitForChild("RideState", 60)
+	if not (start and rideState) then
+		return
+	end
+	local cancel = Remotes:WaitForChild("RideCancel", 10)
+	local active = false
+	local button = make("TextButton", {
+		Size = UDim2.fromOffset(230, 32),
+		Position = UDim2.fromOffset(10, 380),
+		BackgroundColor3 = Color3.fromRGB(230, 180, 0),
+		TextColor3 = Color3.new(0, 0, 0),
+		TextScaled = true,
+		Text = "🏍️ Pegar corrida",
+		Visible = false,
+		Parent = gui,
+	}, { corner() })
+
+	-- marcador no destino: destaque + placa visível de longe
+	local highlight = make("Highlight", {
+		FillColor = Color3.fromRGB(255, 200, 0),
+		OutlineColor = Color3.new(1, 1, 1),
+		DepthMode = Enum.HighlightDepthMode.AlwaysOnTop,
+		Enabled = false,
+		Parent = gui,
+	})
+	local board = make("BillboardGui", {
+		Size = UDim2.fromOffset(200, 50),
+		StudsOffset = Vector3.new(0, 6, 0),
+		AlwaysOnTop = true,
+		Enabled = false,
+		Parent = gui,
+	})
+	local boardText = make("TextLabel", {
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		TextColor3 = Color3.fromRGB(255, 220, 0),
+		TextStrokeTransparency = 0,
+		TextScaled = true,
+		Text = "",
+		Parent = board,
+	})
+
+	local function refresh()
+		button.Visible = me.Team ~= nil and me.Team.Name == "Mototaxistas"
+		button.Text = active and "✖ Cancelar corrida" or "🏍️ Pegar corrida"
+	end
+	me:GetPropertyChangedSignal("Team"):Connect(refresh)
+	refresh()
+
+	local ERR = {
+		NotMototaxi = "Só mototaxista pega corrida",
+		RideActive = "Você já está numa corrida",
+		Cooldown = "Espere um pouco para a próxima",
+		NoCharacter = "Aguarde renascer",
+		NoDropoff = "Nenhum destino disponível",
+		RateLimited = "Calma aí",
+		ServerError = "Erro, tente de novo",
+	}
+	button.Activated:Connect(function()
+		if active then
+			if cancel then
+				cancel:InvokeServer()
+			end
+			return
+		end
+		local ok, res = start:InvokeServer()
+		if not ok then
+			toast(ERR[res] or tostring(res), Color3.fromRGB(90, 90, 90))
+		end
+	end)
+
+	local MSG = {
+		Cancelled = "Corrida cancelada",
+		Expired = "Corrida expirou",
+		TooFast = "Corrida anulada: chegada rápida demais",
+	}
+	rideState.OnClientEvent:Connect(function(s)
+		if type(s) ~= "table" then
+			return
+		end
+		active = s.Active == true
+		local target = active and typeof(s.Target) == "Instance" and s.Target or nil
+		highlight.Adornee = target
+		highlight.Enabled = target ~= nil
+		board.Adornee = target
+		board.Enabled = target ~= nil
+		boardText.Text = target and ("📍 " .. tostring(s.Name)) or ""
+		if s.Status == "Started" then
+			toast("Corrida: leve até " .. tostring(s.Name), Color3.fromRGB(0, 90, 160))
+		elseif s.Status == "Arrived" then
+			local amount = tonumber(s.Amount)
+			toast(
+				amount and ("Corrida paga: +" .. Catalog.FormatReais(amount)) or "Corrida concluída",
+				Color3.fromRGB(0, 120, 50)
+			)
+		elseif MSG[s.Status] then
+			toast(MSG[s.Status], Color3.fromRGB(90, 90, 90))
+		end
+		refresh()
+	end)
 end)

@@ -1,0 +1,80 @@
+local R = require("../src/server/Economy/RideLogic")
+
+return function(T)
+	local describe, it, eq, truthy = T.describe, T.it, T.eq, T.truthy
+
+	describe("RideLogic.MinTime", function()
+		it("piso de MIN_RIDE_TIME", function()
+			eq(R.MinTime(0), R.MIN_RIDE_TIME)
+			eq(R.MinTime(60), R.MIN_RIDE_TIME)
+		end)
+		it("cresce com a distância", function()
+			eq(R.MinTime(R.MAX_SPEED * 30), 30)
+		end)
+		it("entrada inválida não quebra", function()
+			eq(R.MinTime(nil), R.MIN_RIDE_TIME)
+			eq(R.MinTime(0 / 0), R.MIN_RIDE_TIME)
+			eq(R.MinTime(-5), R.MIN_RIDE_TIME)
+		end)
+	end)
+
+	describe("RideLogic.CanStart", function()
+		it("livre", function()
+			eq(R.CanStart(true, nil, 0, 100), nil)
+		end)
+		it("sem emprego", function()
+			eq(R.CanStart(false, nil, 0, 100), "NotMototaxi")
+		end)
+		it("uma corrida por vez", function()
+			eq(R.CanStart(true, {}, 0, 100), "RideActive")
+		end)
+		it("cooldown", function()
+			eq(R.CanStart(true, nil, 101, 100), "Cooldown")
+			eq(R.CanStart(true, nil, 100, 100), nil)
+			eq(R.CanStart(true, nil, "x", 100), nil)
+		end)
+	end)
+
+	describe("RideLogic.PickDropoff", function()
+		local first = function()
+			return 1
+		end
+		it("ignora destinos perto demais", function()
+			eq(R.PickDropoff({ 10, 50, 400 }, first), 3)
+		end)
+		it("nenhum destino válido", function()
+			eq(R.PickDropoff({}, first), nil)
+			eq(R.PickDropoff({ 5, 99 }, first), nil)
+		end)
+		it("sorteia entre os válidos", function()
+			local seen = {}
+			for n = 1, 2 do
+				seen[R.PickDropoff({ 200, 1, 300 }, function()
+					return n
+				end)] = true
+			end
+			truthy(seen[1] and seen[3] and not seen[2])
+		end)
+	end)
+
+	describe("RideLogic.Check", function()
+		local ride = R.NewRide(1, R.MAX_SPEED * 20, 1000) -- tempo mínimo 20s
+		it("NewRide calcula tempo mínimo e expiração", function()
+			eq(ride.MinTime, 20)
+			eq(ride.ExpiresAt, 1000 + R.RIDE_TIMEOUT)
+		end)
+		it("longe do destino", function()
+			eq(R.Check(ride, R.ARRIVE_RADIUS + 1, 1030), "NotArrived")
+			eq(R.Check(ride, nil, 1030), "NotArrived")
+		end)
+		it("chegou rápido demais (teleporte) não paga", function()
+			eq(R.Check(ride, 0, 1005), "TooFast")
+		end)
+		it("chegada válida", function()
+			eq(R.Check(ride, R.ARRIVE_RADIUS, 1020), "Arrived")
+		end)
+		it("expira", function()
+			eq(R.Check(ride, 0, 1000 + R.RIDE_TIMEOUT), "Expired")
+		end)
+	end)
+end
