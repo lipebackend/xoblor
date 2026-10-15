@@ -164,7 +164,7 @@ function Handler.GetExtra(player)
 	return extraData[player]
 end
 
--- Campo Jail de nível superior. Ausente ou EndsAt = 0 = solto.
+-- Campo Jail de nível superior ({ Remaining, Reason }). Ausente ou Remaining = 0 = solto.
 function Handler.GetJail(player)
 	return jailData[player]
 end

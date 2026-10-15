@@ -1,5 +1,7 @@
--- Estado de cadeia: campo de nível superior do perfil, Jail = { EndsAt = os.time() do fim, Reason = "" }.
--- Ausente ou EndsAt = 0 = solto (lido de forma defensiva; schema/migração ficam no DataStoreHandler).
+-- Estado de cadeia: campo de nível superior do perfil, Jail = { Remaining = segundos, Reason = "" }.
+-- A pena só corre online (ArrestService desconta a cada segundo). Ausente ou Remaining = 0 = solto;
+-- o campo legado EndsAt é ignorado. O valor é salvo pelo caminho normal do DataStoreHandler
+-- (saída, autosave e BindToClose).
 -- Sem dependência de outros serviços, para Job/Shop/Bank/Robbery consultarem sem ciclo de require.
 local Data = require(script.Parent.DataStoreHandler)
 local ArrestLogic = require(script.Parent.ArrestLogic)
@@ -7,7 +9,7 @@ local ArrestLogic = require(script.Parent.ArrestLogic)
 local JailState = {}
 
 function JailState.Left(player)
-	return ArrestLogic.Remaining(Data.GetJail(player), os.time())
+	return ArrestLogic.Remaining(Data.GetJail(player))
 end
 
 function JailState.IsJailed(player)
@@ -23,20 +25,28 @@ function JailState.Allowed(player, action)
 	return ArrestLogic.Allowed(action, JailState.IsJailed(player))
 end
 
--- Atributo replicado para o timer do cliente (fim em os.time()).
+-- Atributo replicado para o timer do cliente (segundos restantes).
 local function publish(player)
-	local j = ArrestLogic.Normalize(Data.GetJail(player))
-	player:SetAttribute("JailEndsAt", j.EndsAt > os.time() and j.EndsAt or nil)
+	local left = JailState.Left(player)
+	player:SetAttribute("JailLeft", left > 0 and left or nil)
 end
 JailState.Publish = publish
 
 function JailState.Jail(player, seconds, reason)
-	Data.SetJail(player, ArrestLogic.NewJail(os.time(), seconds, reason))
+	Data.SetJail(player, ArrestLogic.NewJail(seconds, reason))
 	publish(player)
 end
 
+-- Desconta dt segundos online. Retorna true se a pena acabou agora.
+function JailState.Tick(player, dt)
+	local jail, done = ArrestLogic.Tick(Data.GetJail(player), dt)
+	Data.SetJail(player, jail)
+	publish(player)
+	return done
+end
+
 function JailState.Release(player)
-	Data.SetJail(player, { EndsAt = 0, Reason = "" })
+	Data.SetJail(player, { Remaining = 0, Reason = "" })
 	publish(player)
 end
 

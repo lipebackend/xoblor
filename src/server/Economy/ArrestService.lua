@@ -1,6 +1,6 @@
 -- Prisão: policial prende procurado (prompt "Prender" no cliente, tudo validado aqui).
--- Pena e multa em ArrestLogic.Config. A pena fica no campo Jail = { EndsAt, Reason } do perfil
--- (os.time(): corre também offline; quem volta antes do fim cumpre o resto).
+-- Pena e multa em ArrestLogic.Config. A pena fica no campo Jail = { Remaining, Reason } do perfil
+-- e só corre com o jogador no servidor: quem sai e volta cumpre o que faltava.
 local Players = game:GetService("Players")
 local CollectionService = game:GetService("CollectionService")
 local Economy = require(script.Parent.EconomyService)
@@ -139,22 +139,23 @@ for _, p in Players:GetPlayers() do
 	hookCharacter(p)
 end
 
--- soltura no fim da pena e "cerca" da cadeia
-local jailedNow = {} -- [player] = true enquanto preso (para soltar uma vez só)
+-- relógio da pena (só online), soltura e "cerca" da cadeia
 task.spawn(function()
+	local last = os.clock()
 	while true do
 		task.wait(1)
+		local now = os.clock()
+		local dt = now - last
+		last = now
 		for _, p in Players:GetPlayers() do
-			if Economy.IsLoaded(p) then
-				if JailState.IsJailed(p) then
-					jailedNow[p] = true
+			if Economy.IsLoaded(p) and JailState.IsJailed(p) then
+				if JailState.Tick(p, dt) then
+					release(p)
+				else
 					local root, jail = rootOf(p), spot("Jail")
 					if root and jail and (root.Position - jail.Position).Magnitude > Config.JAIL_RADIUS then
 						teleport(p, "Jail")
 					end
-				elseif jailedNow[p] then
-					jailedNow[p] = nil
-					release(p)
 				end
 			end
 		end
@@ -163,7 +164,6 @@ end)
 
 Players.PlayerRemoving:Connect(function(p)
 	copCooldown[p] = nil
-	jailedNow[p] = nil
 end)
 
 return ArrestService

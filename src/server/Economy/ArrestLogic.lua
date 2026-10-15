@@ -7,7 +7,7 @@ ArrestLogic.Config = {
 	SENTENCE_PER_100 = 1, -- + segundos a cada R$100 roubados enquanto procurado
 	SENTENCE_MAX = 180,
 	FINE_PCT = 20, -- % da carteira (nunca o banco), paga ao policial que prendeu
-	VICTIM_REFUND = false, -- devolve o roubado às vítimas (desligado por padrão)
+	VICTIM_REFUND = false, -- devolve o roubado às vítimas; só às que estiverem ONLINE na hora da prisão (desligado)
 	ARREST_DISTANCE = 8, -- studs entre policial e procurado
 	ARREST_COOLDOWN = 10, -- segundos entre prisões do mesmo policial
 	JAIL_RADIUS = 15, -- se sair disto da cadeia, volta pra dentro
@@ -62,31 +62,43 @@ function ArrestLogic.CanArrest(a, cfg)
 	return nil
 end
 
--- Formato salvo (campo de nível superior do perfil): Jail = { EndsAt = os.time() do fim, Reason = "" }.
--- Ausente, corrompido ou EndsAt = 0 significa solto.
+-- Formato salvo (campo de nível superior do perfil): Jail = { Remaining = segundos, Reason = "" }.
+-- A pena só corre com o jogador no servidor. Ausente, corrompido ou Remaining = 0 = solto.
+-- Campo legado EndsAt (os.time) é ignorado: quem só tem EndsAt está solto.
 function ArrestLogic.Normalize(jail)
 	if type(jail) ~= "table" then
-		return { EndsAt = 0, Reason = "" }
+		return { Remaining = 0, Reason = "" }
 	end
-	local endsAt = math.floor(num(jail.EndsAt))
-	return { EndsAt = endsAt, Reason = type(jail.Reason) == "string" and jail.Reason or "" }
+	return {
+		Remaining = math.ceil(num(jail.Remaining)),
+		Reason = type(jail.Reason) == "string" and jail.Reason or "",
+	}
 end
 
 -- Segundos restantes de pena (0 = solto).
-function ArrestLogic.Remaining(jail, now)
-	local j = ArrestLogic.Normalize(jail)
-	if j.EndsAt <= 0 then
-		return 0
+function ArrestLogic.Remaining(jail)
+	return ArrestLogic.Normalize(jail).Remaining
+end
+
+function ArrestLogic.IsJailed(jail)
+	return ArrestLogic.Remaining(jail) > 0
+end
+
+function ArrestLogic.NewJail(sentence, reason)
+	return { Remaining = math.ceil(num(sentence)), Reason = type(reason) == "string" and reason or "" }
+end
+
+-- Desconta `dt` segundos online. Retorna o novo Jail e se foi solto.
+-- Remaining fica fracionário enquanto preso (arredondado para cima ao ler); ao zerar vira { Remaining = 0 }.
+function ArrestLogic.Tick(jail, dt)
+	if type(jail) ~= "table" or num(jail.Remaining) <= 0 then
+		return { Remaining = 0, Reason = "" }, false
 	end
-	return math.max(0, j.EndsAt - now)
-end
-
-function ArrestLogic.IsJailed(jail, now)
-	return ArrestLogic.Remaining(jail, now) > 0
-end
-
-function ArrestLogic.NewJail(now, sentence, reason)
-	return { EndsAt = math.floor(now + num(sentence)), Reason = type(reason) == "string" and reason or "" }
+	local rest = math.max(0, num(jail.Remaining) - num(dt))
+	if rest <= 0 then
+		return { Remaining = 0, Reason = "" }, true
+	end
+	return { Remaining = rest, Reason = type(jail.Reason) == "string" and jail.Reason or "" }, false
 end
 
 -- O preso pode fazer `action`? (Rob, Buy, Pix, Job)

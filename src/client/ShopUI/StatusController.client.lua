@@ -186,7 +186,7 @@ task.spawn(function()
 end)
 
 -- Polícia e cadeia (ArrestService) ------------------------------------------
--- Atributos do servidor: Player.Wanted (procurado) e Player.JailEndsAt (os.time() do fim da pena).
+-- Atributos do servidor: Player.Wanted (procurado) e Player.JailLeft (segundos de pena restantes).
 local jailLabel = make("TextLabel", {
 	Size = UDim2.fromOffset(230, 30),
 	Position = UDim2.fromOffset(10, 418),
@@ -226,7 +226,7 @@ local function clearMark(p)
 end
 local function refreshMark(p)
 	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
-	local wantedNow = p:GetAttribute("Wanted") == true and p:GetAttribute("JailEndsAt") == nil
+	local wantedNow = p:GetAttribute("Wanted") == true and p:GetAttribute("JailLeft") == nil
 	if not wantedNow or not root then
 		clearMark(p)
 		return
@@ -277,7 +277,7 @@ local function watchPlayer(p)
 	p:GetAttributeChangedSignal("Wanted"):Connect(function()
 		refreshMark(p)
 	end)
-	p:GetAttributeChangedSignal("JailEndsAt"):Connect(function()
+	p:GetAttributeChangedSignal("JailLeft"):Connect(function()
 		refreshMark(p)
 	end)
 	p.CharacterAdded:Connect(function(char)
@@ -327,8 +327,7 @@ end)
 -- timer da cadeia (só exibição)
 task.spawn(function()
 	while true do
-		local ends = tonumber(me:GetAttribute("JailEndsAt"))
-		local left = ends and ends - os.time() or 0
+		local left = tonumber(me:GetAttribute("JailLeft")) or 0
 		jailLabel.Visible = left > 0
 		if left > 0 then
 			jailLabel.Text = "🔒 PRESO " .. fmt(left)
