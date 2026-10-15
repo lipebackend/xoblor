@@ -46,8 +46,7 @@ function AtmLogic.SuccessMessage(action, requested, moved, format)
 	local verb = action == "deposit" and "Depositado" or "Sacado"
 	local text = ("%s %s"):format(verb, format(moved))
 	if requested and moved < requested then
-		local why = action == "deposit" and "banco no limite" or "carteira no limite"
-		text ..= (" (de %s; %s)"):format(format(requested), why)
+		text ..= " (limite)" -- parcial: só coube parte (curto para caber no botão)
 	end
 	return text
 end
