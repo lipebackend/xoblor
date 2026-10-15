@@ -2,34 +2,54 @@ local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Economy = require(script.Parent.EconomyService)
+local Logic = require(script.Parent.ProfileLogic)
 
 local store = DataStoreService:GetDataStore("EconomyV1")
 local AUTOSAVE = 60
-local RETRIES = 3
-local LOCK_TIMEOUT = 300 -- trava de sessão expira em 5 min
-local LOCK_WAIT_TRIES = 5
+local RETRIES = 5
+local BACKOFF_BASE, BACKOFF_CAP = 1, 8 -- segundos (com jitter)
+local LOCK_WAIT_TRIES = 5 -- 5 x 5s esperando uma trava viva antes de desistir
+local UPDATE = Enum.DataStoreRequestType.UpdateAsync
 local RECEIPT_TTL = 30 * 24 * 3600
 
 local CLOSE_TIMEOUT = 25 -- BindToClose tem 30s no total
 
 local Handler = {}
 local extraData = {}
-local jailData = {} -- [player] = campo Jail de nível superior ({ EndsAt, Reason }), lido como veio
+local jailData = {} -- [player] = campo Jail de nível superior ({ Remaining, Reason })
 local saving = {} -- [player] = true enquanto um save está em andamento
+local closing = false
 
 local function key(p)
 	return "Player_" .. p.UserId
 end
 
-local function retry(fn)
+-- Espera orçamento de UpdateAsync (até o prazo), para não estourar o limite e cair na fila.
+local function waitBudget(deadline)
+	while DataStoreService:GetRequestBudgetForRequestType(UPDATE) < 1 do
+		if os.clock() >= deadline then
+			return
+		end
+		task.wait(0.5)
+	end
+end
+
+-- Repete com backoff exponencial + jitter, sem passar do prazo (BindToClose usa um prazo curto).
+local function retry(fn, deadline)
+	deadline = deadline or math.huge
 	local ok, res
 	for i = 1, RETRIES do
+		waitBudget(deadline)
 		ok, res = pcall(fn)
 		if ok then
 			return true, res
 		end
 		warn("[DataStore] tentativa " .. i .. " falhou: " .. tostring(res))
-		task.wait(2 ^ i)
+		local delay = Logic.Backoff(i, BACKOFF_BASE, BACKOFF_CAP, math.random)
+		if i == RETRIES or os.clock() + delay >= deadline then
+			break
+		end
+		task.wait(delay)
 	end
 	return false, res
 end
@@ -47,7 +67,7 @@ local function pruneReceipts(extra)
 end
 
 -- grava só se esta sessão for a dona; release=true libera a trava
-local function doSave(player, release)
+local function doSave(player, release, deadline)
 	local coins = Economy.GetSnapshot(player)
 	if coins == nil then
 		return false
@@ -57,35 +77,31 @@ local function doSave(player, release)
 	local owned = false
 	local ok = retry(function()
 		store:UpdateAsync(key(player), function(old)
-			old = old or {}
-			if old.SessionJobId and old.SessionJobId ~= game.JobId then
-				owned = false
-				return nil -- outro servidor é o dono: não sobrescreve
-			end
-			owned = true
-			return {
-				Coins = coins,
-				Extra = extra,
-				Jail = jailData[player],
-				Version = 1,
-				SessionJobId = (not release) and game.JobId or nil,
-				SessionTime = os.time(),
-			}
+			local new = Logic.BuildSave(old, game.JobId, os.time(), coins, extra, jailData[player], release)
+			owned = new ~= nil
+			return new -- nil: outro servidor é o dono, não sobrescreve
 		end)
-	end)
+	end, deadline)
 	if not ok then
 		warn(("[DataStore] save de %d falhou após %d tentativas"):format(player.UserId, RETRIES))
+	elseif not owned and not release and player.Parent then
+		-- perdemos a trava (outro servidor tomou): continuar jogando aqui duplicaria progresso
+		warn(("[DataStore] trava de %d perdida; expulsando"):format(player.UserId))
+		Economy.Release(player)
+		extraData[player] = nil
+		jailData[player] = nil
+		player:Kick("Seus dados foram abertos em outro servidor. Entre de novo.")
 	end
 	return ok and owned
 end
 
 -- serializa saves do mesmo jogador (autosave x SaveNow x saída não se atropelam)
-local function save(player, release)
+local function save(player, release, deadline)
 	while saving[player] do
 		task.wait()
 	end
 	saving[player] = true
-	local ok, res = pcall(doSave, player, release)
+	local ok, res = pcall(doSave, player, release, deadline)
 	saving[player] = nil
 	if not ok then
 		warn("[DataStore] erro no save: " .. tostring(res))
@@ -114,27 +130,38 @@ local function load(player)
 		if not player.Parent then
 			return -- saiu enquanto esperava a trava: nada foi travado por este servidor
 		end
-		local locked = false
+		local locked, tooNew = false, false
 		local ok = retry(function()
 			store:UpdateAsync(key(player), function(old)
-				old = old or {}
-				if
-					old.SessionJobId
-					and old.SessionJobId ~= game.JobId
-					and os.time() - (old.SessionTime or 0) < LOCK_TIMEOUT
-				then
+				local decision = Logic.LockDecision(old, game.JobId, os.time())
+				if decision == "locked" then
 					locked = true
 					return nil
 				end
 				locked = false
-				old.SessionJobId = game.JobId
-				old.SessionTime = os.time()
-				data = old
-				return old
+				if decision == "stale" then
+					warn(
+						("[DataStore] trava morta de %d tomada de %s"):format(player.UserId, tostring(old.SessionJobId))
+					)
+				end
+				local migrated = Logic.Migrate(old, os.time())
+				if not migrated then
+					tooNew = true
+					return nil
+				end
+				tooNew = false
+				migrated.SessionJobId = game.JobId
+				migrated.SessionTime = os.time()
+				data = migrated
+				return migrated
 			end)
 		end)
 		if not ok then
 			player:Kick("Falha ao carregar seus dados. Tente novamente.")
+			return
+		end
+		if tooNew then
+			player:Kick("Seus dados são de uma versão mais nova do jogo. Entre em outro servidor.")
 			return
 		end
 		if not locked then
@@ -155,8 +182,8 @@ local function load(player)
 		player:Kick("Seus dados ainda estão em uso em outro servidor. Tente de novo em instantes.")
 		return
 	end
-	extraData[player] = type(data.Extra) == "table" and data.Extra or {}
-	jailData[player] = data.Jail -- validado por quem lê (JailState/ArrestLogic.Normalize)
+	extraData[player] = data.Extra
+	jailData[player] = data.Jail
 	Economy.Init(player, data.Coins)
 end
 
@@ -164,7 +191,8 @@ function Handler.GetExtra(player)
 	return extraData[player]
 end
 
--- Campo Jail de nível superior ({ Remaining, Reason }). Ausente ou Remaining = 0 = solto.
+-- Campo Jail de nível superior: { Remaining = segundos restantes (0 = solto), Reason = "assalto" etc. }.
+-- Já vem normalizado do load; é normalizado de novo a cada save. API igual à do #23.
 function Handler.GetJail(player)
 	return jailData[player]
 end
@@ -184,33 +212,36 @@ end
 
 local released = {} -- jogadores já salvos na saída (evita save duplo com o BindToClose)
 
-local function saveAndRelease(p)
+local function saveAndRelease(p, deadline)
 	if released[p] then
 		return
 	end
 	released[p] = true
-	save(p, true)
+	save(p, true, deadline)
 	Economy.Release(p)
 	extraData[p] = nil
 	jailData[p] = nil
 	released[p] = nil
 end
 
-Players.PlayerRemoving:Connect(saveAndRelease)
+Players.PlayerRemoving:Connect(function(p)
+	saveAndRelease(p)
+end)
 
 game:BindToClose(function()
 	if RunService:IsStudio() then
 		task.wait(1)
 	end
+	closing = true
+	local deadline = os.clock() + CLOSE_TIMEOUT
 	local pending = 0
 	for _, p in Players:GetPlayers() do
 		pending += 1
 		task.spawn(function()
-			saveAndRelease(p)
+			saveAndRelease(p, deadline)
 			pending -= 1
 		end)
 	end
-	local deadline = os.clock() + CLOSE_TIMEOUT
 	while (pending > 0 or next(saving) ~= nil) and os.clock() < deadline do
 		task.wait()
 	end
@@ -223,7 +254,7 @@ task.spawn(function()
 	while true do
 		task.wait(AUTOSAVE)
 		for _, p in Players:GetPlayers() do
-			if not saving[p] then
+			if not closing and not saving[p] then
 				task.spawn(save, p, false)
 			end
 		end
