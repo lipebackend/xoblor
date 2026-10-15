@@ -5,20 +5,11 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-ROJO_VERSION="7.4.4"
 BIN_DIR="$PWD/.tools"
 ROJO="$BIN_DIR/rojo"
 
-if ! [ -x "$ROJO" ]; then
-  command -v unzip >/dev/null || { echo "Instale o unzip primeiro."; exit 1; }
-  echo "Baixando Rojo $ROJO_VERSION..."
-  mkdir -p "$BIN_DIR"
-  curl -fsSL -o /tmp/rojo.zip \
-    "https://github.com/rojo-rbx/rojo/releases/download/v$ROJO_VERSION/rojo-$ROJO_VERSION-linux-x86_64.zip"
-  unzip -o -q /tmp/rojo.zip -d "$BIN_DIR"
-  chmod +x "$ROJO"
-  rm -f /tmp/rojo.zip
-fi
+# Baixa rojo/selene/stylua fixados com verificação de sha256.
+./scripts/install-tools.sh "$BIN_DIR"
 
 case "${1:-serve}" in
   build)
