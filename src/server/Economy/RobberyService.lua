@@ -8,6 +8,8 @@ local RemoteUtil = require(script.Parent.RemoteUtil)
 local JailState = require(script.Parent.JailState)
 local Logic = require(script.Parent.RobberyLogic)
 local EconomyLogic = require(script.Parent.EconomyLogic)
+local DownState = require(script.Parent.DownState)
+local MedicLogic = require(script.Parent.MedicLogic)
 
 local RobberyService = {}
 local MAX_DISTANCE = Logic.MAX_DISTANCE
@@ -83,8 +85,12 @@ function RobberyService.Rob(robber, target)
 	if not rs or not ts then
 		return false, "NotLoaded"
 	end
-	if not JailState.Allowed(robber, "Rob") then
-		return false, "Jailed"
+	local blocked = JailState.Block(robber, "Rob")
+	if blocked then
+		return false, blocked
+	end
+	if not MedicLogic.CanBeRobbed(DownState.IsDowned(target)) then
+		return false, "TargetDowned"
 	end
 	if JailState.IsJailed(target) then
 		return false, "TargetJailed"

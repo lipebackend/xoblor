@@ -18,6 +18,9 @@ local JobCatalog = {
 	},
 }
 
+-- Papéis com regra própria no servidor (ex.: MedicService). O time vem do próprio emprego.
+JobCatalog.MEDIC_JOB = "medico"
+
 function JobCatalog.Get(id)
 	return JobCatalog.Jobs[id]
 end

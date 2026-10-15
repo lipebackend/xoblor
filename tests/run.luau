@@ -11,6 +11,7 @@ for _, name in
 		"RideLogic.spec",
 		"InteractLogic.spec",
 		"ArrestLogic.spec",
+		"MedicLogic.spec",
 	}
 do
 	require("./" .. name)(T)

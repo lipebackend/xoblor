@@ -148,6 +148,8 @@ task.spawn(function()
 			TargetGone = "O alvo saiu do servidor",
 			Jailed = "Você está preso",
 			TargetJailed = "Alvo está preso",
+			Downed = "Você está desmaiado",
+			TargetDowned = "Vítima desmaiada",
 			ServerError = "Erro, tente de novo",
 		}
 		r.OnClientEvent:Connect(function(success, value, targetUserId)
@@ -439,5 +441,214 @@ task.spawn(function()
 			toast(MSG[s.Status], Color3.fromRGB(90, 90, 90))
 		end
 		refresh()
+	end)
+end)
+
+-- Desmaio e médico (MedicService) --------------------------------------------
+-- Atributos do servidor: Player.Downed e Player.DownedLeft (segundos até o hospital).
+local downBox = make("Frame", {
+	Size = UDim2.fromOffset(230, 70),
+	Position = UDim2.fromOffset(10, 454),
+	BackgroundColor3 = Color3.fromRGB(140, 20, 20),
+	Visible = false,
+	Parent = gui,
+}, { corner() })
+local downLabel = make("TextLabel", {
+	Size = UDim2.new(1, -10, 0, 30),
+	Position = UDim2.fromOffset(5, 2),
+	BackgroundTransparency = 1,
+	TextColor3 = Color3.new(1, 1, 1),
+	TextScaled = true,
+	Text = "",
+	Parent = downBox,
+})
+local callButton = make("TextButton", {
+	Size = UDim2.new(1, -10, 0, 30),
+	Position = UDim2.fromOffset(5, 36),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+	TextColor3 = Color3.fromRGB(140, 20, 20),
+	TextScaled = true,
+	Text = "📞 Chamar médico",
+	Parent = downBox,
+}, { corner() })
+
+local MEDIC_ERR = {
+	NotMedic = "Só médico reanima",
+	Downed = "Você está desmaiado",
+	Jailed = "Você está preso",
+	Cooldown = "Espere para reanimar de novo",
+	NotDowned = "Não está desmaiado",
+	TooFar = "Chegue mais perto",
+	TargetGone = "Saiu do servidor",
+	RateLimited = "Já chamou, espere um pouco",
+	ServerError = "Erro, tente de novo",
+}
+
+callButton.Activated:Connect(function()
+	local r = Remotes:FindFirstChild("CallMedic")
+	if not r then
+		return
+	end
+	local ok, res = r:InvokeServer()
+	if ok then
+		toast(res > 0 and ("Chamado enviado a %d médico(s)"):format(res) or "Nenhum médico em serviço agora")
+	else
+		toast(MEDIC_ERR[res] or tostring(res), Color3.fromRGB(90, 90, 90))
+	end
+end)
+
+local function isMedicTeam()
+	return me.Team ~= nil and me.Team.Name == "Saúde"
+end
+
+-- placa 🚑 para todos e prompt "Reanimar" só para o time Saúde
+local downMarks = {}
+local function clearDown(p)
+	local m = downMarks[p]
+	if m then
+		m.board:Destroy()
+		m.prompt:Destroy()
+		downMarks[p] = nil
+	end
+end
+local function refreshDown(p)
+	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	if p:GetAttribute("Downed") ~= true or not root then
+		clearDown(p)
+		return
+	end
+	local m = downMarks[p]
+	if not m or m.board.Adornee ~= root then
+		clearDown(p)
+		local text = make("TextLabel", {
+			Size = UDim2.fromScale(1, 1),
+			BackgroundTransparency = 1,
+			TextColor3 = Color3.fromRGB(255, 80, 80),
+			TextStrokeTransparency = 0,
+			TextScaled = true,
+			Text = "🚑 DESMAIADO",
+		})
+		local board = make("BillboardGui", {
+			Size = UDim2.fromOffset(160, 36),
+			StudsOffset = Vector3.new(0, 3, 0),
+			AlwaysOnTop = true,
+			Adornee = root,
+			Parent = gui,
+		}, { text })
+		local prompt = make("ProximityPrompt", {
+			ActionText = "Reanimar",
+			ObjectText = p.DisplayName,
+			HoldDuration = 2,
+			MaxActivationDistance = 8,
+			RequiresLineOfSight = false,
+			Parent = root,
+		})
+		local userId = p.UserId
+		prompt.Triggered:Connect(function()
+			local r = Remotes:FindFirstChild("Revive")
+			if r then
+				local ok, res = r:InvokeServer(userId)
+				if not ok then
+					toast(MEDIC_ERR[res] or tostring(res), Color3.fromRGB(90, 90, 90))
+				end
+			end
+		end)
+		m = { board = board, prompt = prompt, text = text }
+		downMarks[p] = m
+	end
+	local left = tonumber(p:GetAttribute("DownedLeft"))
+	m.text.Text = left and ("🚑 DESMAIADO " .. fmt(left)) or "🚑 DESMAIADO"
+	m.prompt.Enabled = isMedicTeam() and p ~= me
+end
+local function watchDown(p)
+	p:GetAttributeChangedSignal("Downed"):Connect(function()
+		refreshDown(p)
+	end)
+	p:GetAttributeChangedSignal("DownedLeft"):Connect(function()
+		refreshDown(p)
+	end)
+	p.CharacterAdded:Connect(function(char)
+		char:WaitForChild("HumanoidRootPart", 5)
+		refreshDown(p)
+	end)
+	refreshDown(p)
+end
+Players.PlayerAdded:Connect(watchDown)
+Players.PlayerRemoving:Connect(clearDown)
+for _, p in Players:GetPlayers() do
+	watchDown(p)
+end
+me:GetPropertyChangedSignal("Team"):Connect(function()
+	for _, p in Players:GetPlayers() do
+		refreshDown(p)
+	end
+end)
+
+-- meu timer
+local function refreshMine()
+	local left = tonumber(me:GetAttribute("DownedLeft"))
+	downBox.Visible = me:GetAttribute("Downed") == true
+	downLabel.Text = "🚑 DESMAIADO " .. (left and fmt(left) or "")
+end
+me:GetAttributeChangedSignal("Downed"):Connect(refreshMine)
+me:GetAttributeChangedSignal("DownedLeft"):Connect(refreshMine)
+refreshMine()
+
+-- avisos e chamado (marcador temporário no local de quem chamou)
+task.spawn(function()
+	local r = Remotes:WaitForChild("MedicEvent", 60)
+	if not r then
+		return
+	end
+	r.OnClientEvent:Connect(function(kind, info)
+		info = type(info) == "table" and info or {}
+		if kind == "fainted" then
+			toast("Você desmaiou de fome/cansaço. Chame um médico!", Color3.fromRGB(140, 20, 20))
+		elseif kind == "revived" then
+			toast(
+				("Reanimado por %s: -%s"):format(nameOf(info.By), Catalog.FormatReais(tonumber(info.Fee) or 0)),
+				Color3.fromRGB(0, 120, 50)
+			)
+		elseif kind == "reviver" then
+			toast(
+				("Você reanimou %s: +%s"):format(nameOf(info.Target), Catalog.FormatReais(tonumber(info.Fee) or 0)),
+				Color3.fromRGB(0, 120, 50)
+			)
+		elseif kind == "hospital" then
+			toast(
+				("Levado ao hospital: -%s"):format(Catalog.FormatReais(tonumber(info.Fee) or 0)),
+				Color3.fromRGB(90, 90, 90)
+			)
+		elseif kind == "call" and typeof(info.Position) == "Vector3" then
+			toast(("🚑 %s precisa de médico!"):format(nameOf(info.From)), Color3.fromRGB(140, 20, 20))
+			local pin = make("Part", {
+				Anchored = true,
+				CanCollide = false,
+				CanQuery = false,
+				Transparency = 1,
+				Size = Vector3.new(1, 1, 1),
+				Position = info.Position,
+				Parent = workspace,
+			})
+			make("BillboardGui", {
+				Size = UDim2.fromOffset(160, 40),
+				StudsOffset = Vector3.new(0, 6, 0),
+				AlwaysOnTop = true,
+				Adornee = pin,
+				Parent = pin,
+			}, {
+				make("TextLabel", {
+					Size = UDim2.fromScale(1, 1),
+					BackgroundTransparency = 1,
+					TextColor3 = Color3.fromRGB(255, 80, 80),
+					TextStrokeTransparency = 0,
+					TextScaled = true,
+					Text = "🚑 " .. nameOf(info.From),
+				}),
+			})
+			task.delay(60, function()
+				pin:Destroy()
+			end)
+		end
 	end)
 end)

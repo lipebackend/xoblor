@@ -56,6 +56,7 @@ local ERR = {
 	Occupied = "Ocupada",
 	NoSpawnNearby = "Vá a um estacionamento",
 	Jailed = "Você está preso",
+	Downed = "Você está desmaiado",
 	ServerError = "Erro, tente de novo",
 }
 local function err(res)

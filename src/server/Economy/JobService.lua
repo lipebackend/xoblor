@@ -80,8 +80,9 @@ function JobService.SetJob(player, jobId)
 	if jobId ~= nil and not JobCatalog.Get(jobId) then
 		return false, "UnknownJob"
 	end
-	if jobId ~= nil and not JailState.Allowed(player, "Job") then
-		return false, "Jailed"
+	local blocked = jobId ~= nil and JailState.Block(player, "Job")
+	if blocked then
+		return false, blocked
 	end
 	extra.Job = jobId
 	applyTeam(player, jobId)
