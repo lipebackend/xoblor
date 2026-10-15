@@ -1,4 +1,4 @@
-# CI do xoblor: selene, StyLua e testes lune (matriz) e build do place com Rojo.
+# CI do xoblor: selene, StyLua e testes lune (matriz), build do place com Rojo e gate de desempenho (bench).
 # "Lint (StyLua + selene)" e "Build (Rojo)" são checks obrigatórios no ruleset da main: não renomear.
 name: CI
 
@@ -65,6 +65,30 @@ jobs:
         run: |
           echo "checks: $RESULT"
           test "$RESULT" = "success"
+
+  # Gate de desempenho: scripts/ci/bench-gate.sh (limites e tentativas em docs/BENCH.md).
+  bench:
+    name: Bench (lune)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Cache das ferramentas
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/.dl
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh', 'rokit.toml') }}
+
+      - name: Instalar ferramentas (versões fixas + sha256)
+        run: |
+          ./scripts/install-tools.sh
+          echo "$PWD/.tools" >> "$GITHUB_PATH"
+
+      - name: Bench com limites (p95 <= 1 ms com 30; max do autosave escalonado <= 0,5 ms com 60)
+        run: ./scripts/ci/bench-gate.sh
 
   build:
     name: Build (Rojo)

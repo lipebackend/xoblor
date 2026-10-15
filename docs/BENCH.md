@@ -1,7 +1,7 @@
 # Benchmark de carga (lune)
 
 Mede quanto custa, por tick do servidor, a lógica de segurança e de save com N jogadores simulados.
-Não roda no CI. Rode à mão antes de mexer em `MoveLogic`, `RemoteGuard`, `SecurityLogic` ou `ProfileLogic`.
+O CI roda um gate com limites (ver "No CI" abaixo). Rode à mão antes de mexer em `MoveLogic`, `RemoteGuard`, `SecurityLogic` ou `ProfileLogic`.
 
 ```bash
 ./setup.sh bench              # 30 jogadores, 2000 ticks
@@ -66,6 +66,38 @@ Como só 1 tick em 120 tem save, o efeito aparece no **max**, que é o pior tick
 O pior tick cai de ~0,57 para ~0,16 ms com 30 jogadores, e de ~1,24 para ~0,20 ms com 60. Com 60 jogadores, o "antes" passa da meta de 1 ms. A mediana sobe ~0,01 ms por causa do `Schedule.Due` a cada tick.
 
 No jogo, o ganho maior está fora do script: o orçamento de `UpdateAsync` deixa de receber 30 a 60 requisições no mesmo segundo.
+
+## No CI
+
+O job **Bench (lune)** roda `scripts/ci/bench-gate.sh`, que faz duas checagens:
+
+1. **p95 ≤ 1 ms** em todos os cenários, com 30 jogadores e 2000 ticks;
+2. **max ≤ 0,5 ms** no cenário de autosave escalonado, com 60 jogadores e 2400 ticks (`--only-stagger`).
+
+Tratamento do ruído do runner:
+
+- cada execução descarta 200 ticks de aquecimento;
+- cada checagem roda até **3 vezes**, em processos separados (GC e heap novos), e **só falha se as 3 estourarem**.
+
+O max é um único tick e sofre picos isolados de GC e agendamento. Uma tentativa boa basta para mostrar que o código cabe no limite. Uma regressão real estoura em todas as tentativas.
+
+Os limites e o número de tentativas podem ser trocados por variáveis de ambiente: `BENCH_P95_MS`, `BENCH_STAGGER_MAX_MS` e `BENCH_ATTEMPTS`.
+
+O bench também tem flags para uso direto:
+
+```bash
+lune run bench/run.luau 30 2000 --ci --p95-ms=1
+lune run bench/run.luau 60 2400 --ci --only-stagger --no-p95 --stagger-max-ms=0.5
+```
+
+Com `--ci` (ou `XOBLOR_BENCH_CI=1`), o bench imprime uma linha `BENCH_RESULT {json}` por cenário e sai com um destes códigos:
+
+- `0`: ok;
+- `1`: p95 estourou;
+- `2`: max do escalonado estourou;
+- `3`: `--stagger-max-ms` foi pedido, mas `src/server/Economy/AutosaveSchedule.lua` não existe. Isso **falha na hora, sem nova tentativa**: tirar o escalonamento é regressão, não ruído.
+
+Sem `--ci`, `./setup.sh bench` funciona como antes e sempre sai com 0.
 
 ## Limitações (lune ≠ Roblox)
 
