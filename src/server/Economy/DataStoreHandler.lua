@@ -3,6 +3,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Economy = require(script.Parent.EconomyService)
 local Logic = require(script.Parent.ProfileLogic)
+local SecurityLog = require(script.Parent.SecurityLog)
 
 local store = DataStoreService:GetDataStore("EconomyV1")
 local AUTOSAVE = 60
@@ -86,7 +87,7 @@ local function doSave(player, release, deadline)
 		warn(("[DataStore] save de %d falhou após %d tentativas"):format(player.UserId, RETRIES))
 	elseif not owned and not release and player.Parent then
 		-- perdemos a trava (outro servidor tomou): continuar jogando aqui duplicaria progresso
-		warn(("[DataStore] trava de %d perdida; expulsando"):format(player.UserId))
+		SecurityLog.Record(player, "session_lock_lost", "DataStore", "trava tomada por outro servidor; expulsando")
 		Economy.Release(player)
 		extraData[player] = nil
 		jailData[player] = nil

@@ -167,7 +167,7 @@ RemoteUtil.BindFunction("Pix", function(player, targetUserId, amount)
 	end
 	local ok, res = BankService.Pix(player, target, amount)
 	if not ok and res == "PixLimit" then
-		RemoteUtil.Flag(player, ("Pix acima do limite (R$%d para %d)"):format(amount, targetUserId))
+		RemoteUtil.Flag(player, ("acima do limite (R$%d para %d)"):format(amount, targetUserId), "flag", "Pix")
 	end
 	return ok, res
 end)

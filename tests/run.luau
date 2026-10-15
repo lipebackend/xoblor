@@ -17,6 +17,7 @@ for _, name in
 		"MoveLogic.spec",
 		"RemoteGuard.spec",
 		"AtmLogic.spec",
+		"SecurityLogic.spec",
 	}
 do
 	require("./" .. name)(T)
