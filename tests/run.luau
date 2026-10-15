@@ -12,6 +12,7 @@ for _, name in
 		"InteractLogic.spec",
 		"ArrestLogic.spec",
 		"MedicLogic.spec",
+		"SalaryLogic.spec",
 		"ProfileLogic.spec",
 	}
 do

@@ -74,13 +74,6 @@ function RemoteUtil.IsId(s)
 	return type(s) == "string" and #s > 0 and #s <= 64 and s:match("^[%w_]+$") ~= nil
 end
 
--- AfkService é carregado sob demanda: ele não depende do RemoteUtil, mas evita ordem de require.
-local afk
-local function markActive(player)
-	afk = afk or require(script.Parent.AfkService)
-	afk.MarkActive(player)
-end
-
 -- Liga um RemoteFunction com rate limit, pcall e log. handler(player, ...) -> ok, res
 function RemoteUtil.BindFunction(name, interval, burst, handler)
 	local rateOk = RemoteUtil.Limiter(interval, burst)
@@ -95,9 +88,6 @@ function RemoteUtil.BindFunction(name, interval, burst, handler)
 		end
 		if a == false and b == "Invalid" then
 			RemoteUtil.Flag(player, name .. ": payload inválido")
-		elseif a == true then
-			-- ação aceita pelo servidor conta como atividade (AFK); chamadas recusadas não contam
-			markActive(player)
 		end
 		return a, b
 	end
