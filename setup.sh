@@ -2,7 +2,7 @@
 # Uso: ./setup.sh [serve|build|bench]
 #   serve (padrão): sincroniza ao vivo com o Roblox Studio (plugin Rojo)
 #   build: gera xoblor.rbxl para abrir no Studio
-#   bench: benchmark de carga com lune (docs/BENCH.md); não roda no CI
+#   bench [jogadores] [ticks] [--ci ...]: benchmark de carga com lune (docs/BENCH.md)
 set -euo pipefail
 cd "$(dirname "$0")"
 
