@@ -20,6 +20,7 @@ for _, name in
 		"SecurityLogic.spec",
 		"AutosaveSchedule.spec",
 		"DataStoreFailures.spec",
+		"BindToClose.spec",
 	}
 do
 	require("./" .. name)(T)

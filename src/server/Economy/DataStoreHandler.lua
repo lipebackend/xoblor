@@ -6,6 +6,7 @@ local Logic = require(script.Parent.ProfileLogic)
 local SecurityLog = require(script.Parent.SecurityLog)
 local Schedule = require(script.Parent.AutosaveSchedule)
 local Retry = require(script.Parent.DataStoreRetry)
+local Close = require(script.Parent.DataStoreClose)
 
 local store = DataStoreService:GetDataStore("EconomyV1")
 local AUTOSAVE = 60 -- cada jogador salva a cada 60s, numa fase própria (AutosaveSchedule)
@@ -43,6 +44,7 @@ local retryEnv = {
 	backoff = Logic.Backoff,
 	rand = math.random,
 	log = warn,
+	callMargin = 1, -- reserva 1s para o UpdateAsync terminar antes do prazo do BindToClose
 }
 local function retry(fn, deadline)
 	return Retry.Run(fn, retryEnv, deadline)
@@ -233,19 +235,16 @@ game:BindToClose(function()
 		task.wait(1)
 	end
 	closing = true
-	local deadline = os.clock() + CLOSE_TIMEOUT
-	local pending = 0
-	for _, p in Players:GetPlayers() do
-		pending += 1
-		task.spawn(function()
-			saveAndRelease(p, deadline)
-			pending -= 1
-		end)
-	end
-	while (pending > 0 or next(saving) ~= nil) and os.clock() < deadline do
-		task.wait()
-	end
-	if pending > 0 or next(saving) ~= nil then
+	-- todos em paralelo, cada um com o mesmo prazo; regras em DataStoreClose
+	local pending = Close.Run(Players:GetPlayers(), saveAndRelease, {
+		clock = os.clock,
+		wait = task.wait,
+		spawn = task.spawn,
+		busy = function()
+			return next(saving) ~= nil
+		end,
+	}, CLOSE_TIMEOUT)
+	if pending > 0 then
 		warn(("[DataStore] BindToClose terminou com %d saves pendentes"):format(pending))
 	end
 end)
