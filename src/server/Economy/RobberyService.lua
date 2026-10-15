@@ -79,6 +79,9 @@ function RobberyService.Rob(robber, target)
 	if typeof(target) ~= "Instance" or not target:IsA("Player") or target == robber then
 		return false, "Invalid"
 	end
+	if require(script.Parent.MovementService).IsBlocked(robber) then
+		return false, "MovementCheck" -- salto impossível recente
+	end
 	if target.Parent ~= Players then
 		return false, "TargetGone" -- saiu do servidor: não é exploit, não gera strike
 	end
