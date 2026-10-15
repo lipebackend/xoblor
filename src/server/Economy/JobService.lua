@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local Afk = require(script.Parent.AfkService)
 local JobCatalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("JobCatalog"))
 
 local JobService = {}
@@ -121,6 +122,7 @@ local function hookStation(part)
 		if not rateOk(player) then
 			return
 		end
+		Afk.MarkActive(player)
 		if JobService.GetJob(player) == jobId then
 			JobService.SetJob(player, nil)
 		else
@@ -153,7 +155,8 @@ task.spawn(function()
 		for _, p in Players:GetPlayers() do
 			local jobId = JobService.GetJob(p)
 			local job = jobId and JobCatalog.Get(jobId)
-			if job and not job.PayPerRide then
+			-- sem salário para quem está AFK (sem mover nem agir há AfkConfig.TIMEOUT)
+			if job and not job.PayPerRide and not Afk.IsAfk(p) then
 				task.spawn(pay, p, jobId, "job:" .. jobId)
 			end
 		end

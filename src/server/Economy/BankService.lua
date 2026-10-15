@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local Logic = require(script.Parent.EconomyLogic)
 
 local BankService = {}
 local PIX_LIMIT = 5000
@@ -72,24 +73,32 @@ function BankService.Withdraw(player, amount)
 	if extra.Bank < amount then
 		return false, "InsufficientFunds"
 	end
-	extra.Bank -= amount
-	local ok, err = Economy.AddCoins(player, amount, "bank:withdraw")
+	-- Só debita do banco o que coube na carteira (perto do teto o saque é parcial).
+	local ok, err, credited = Economy.AddCoins(player, amount, "bank:withdraw")
 	if not ok then
-		extra.Bank += amount
 		return false, err
 	end
+	extra.Bank -= credited
 	notify(player, extra)
-	return true, extra.Bank
+	return true, extra.Bank, credited
+end
+
+-- Crédito direto no banco (usado pelo excedente de compras com Robux). Retorna o valor creditado.
+function BankService.CreditBank(player, amount)
+	local extra = extraOf(player)
+	if not extra or not RemoteUtil.IsInt(amount, 0, MAX_BANK) then
+		return 0
+	end
+	local credited = math.min(amount, MAX_BANK - extra.Bank)
+	if credited > 0 then
+		extra.Bank += credited
+		notify(player, extra)
+	end
+	return credited
 end
 
 local function pixUsed(extra, now)
-	local used, kept = 0, {}
-	for _, e in ipairs(extra.PixLog) do
-		if now - e.t < PIX_WINDOW then
-			used += e.v
-			table.insert(kept, e)
-		end
-	end
+	local used, kept = Logic.PixUsed(extra.PixLog, now, PIX_WINDOW)
 	extra.PixLog = kept
 	return used
 end

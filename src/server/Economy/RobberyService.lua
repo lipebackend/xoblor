@@ -5,14 +5,11 @@ local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local Logic = require(script.Parent.RobberyLogic)
+local EconomyLogic = require(script.Parent.EconomyLogic)
 
 local RobberyService = {}
-local MAX_DISTANCE = 8
-local ROB_COOLDOWN = 300
-local PROTECTION = 180
-local WANTED_TIME = 120
-local MIN_PCT, MAX_PCT = 10, 30
-local MAX_ROB = 2000
+local MAX_DISTANCE = Logic.MAX_DISTANCE
 local POLICE_TEAM = "Polícia"
 local POLICE_JOB = "policial"
 
@@ -29,10 +26,7 @@ local function stateOf(player)
 	if not extra then
 		return nil
 	end
-	local s = type(extra.Robbery) == "table" and extra.Robbery or {}
-	s.RobCooldownUntil = tonumber(s.RobCooldownUntil) or 0
-	s.ProtectedUntil = tonumber(s.ProtectedUntil) or 0
-	s.WantedUntil = tonumber(s.WantedUntil) or 0
+	local s = Logic.NormalizeState(extra.Robbery)
 	extra.Robbery = s
 	return s
 end
@@ -83,15 +77,10 @@ function RobberyService.Rob(robber, target)
 	if not rs or not ts then
 		return false, "NotLoaded"
 	end
-	if isPolice(robber) then
-		return false, "SameTeamPolice"
-	end
 	local now = os.time()
-	if rs.RobCooldownUntil > now then
-		return false, "Cooldown"
-	end
-	if ts.ProtectedUntil > now then
-		return false, "TargetProtected"
+	local denied = Logic.Check(rs, ts, now, isPolice(robber))
+	if denied then
+		return false, denied
 	end
 	local a, b = rootOf(robber), rootOf(target)
 	if not a or not b or (a.Position - b.Position).Magnitude > MAX_DISTANCE then
@@ -101,22 +90,28 @@ function RobberyService.Rob(robber, target)
 	if not ok then
 		return false, "NotLoaded"
 	end
-	local amount = math.min(math.floor(wallet * math.random(MIN_PCT, MAX_PCT) / 100), MAX_ROB)
+	local okR, robberWallet = Economy.GetBalance(robber)
+	if not okR then
+		return false, "NotLoaded"
+	end
+	local amount = Logic.Amount(wallet, math.random(Logic.MIN_PCT, Logic.MAX_PCT), robberWallet)
 	if amount < 1 then
-		return false, "TargetEmpty"
+		return false, wallet > 0 and robberWallet >= EconomyLogic.MAX_BALANCE and "RobberFull" or "TargetEmpty"
 	end
 	local spent, err = Economy.SpendCoins(target, amount, "robbery")
 	if not spent then
 		return false, err == "InsufficientFunds" and "TargetEmpty" or err
 	end
-	local added, addErr = Economy.AddCoins(robber, amount, "robbery")
-	if not added then
-		Economy.AddCoins(target, amount, "robbery:refund")
-		return false, addErr
+	local added, addErr, credited = Economy.AddCoins(robber, amount, "robbery")
+	if not added or credited < amount then
+		-- não deveria acontecer (amount já cabe no ladrão); devolve a diferença à vítima
+		Economy.AddCoins(target, added and amount - credited or amount, "robbery:refund")
+		if not added then
+			return false, addErr
+		end
+		amount = credited
 	end
-	rs.RobCooldownUntil = now + ROB_COOLDOWN
-	rs.WantedUntil = now + WANTED_TIME
-	ts.ProtectedUntil = now + PROTECTION
+	Logic.ApplySuccess(rs, ts, now)
 	warn(("[Robbery] %d roubou %d de %d"):format(robber.UserId, amount, target.UserId))
 	robbedEvent:FireClient(target, robber.UserId, amount)
 	notify(robber)
