@@ -25,17 +25,33 @@ jobs:
         with:
           persist-credentials: false
 
-      # setup-rokit não publica tag de versão maior (v0); fixado na versão exata.
-      - name: Instalar ferramentas (Rokit)
-        uses: CompeyDev/setup-rokit@v0.2.1
-        with:
-          cache: "true"
+      - name: Instalar ferramentas (versões fixas + sha256)
+        run: |
+          ./scripts/install-tools.sh
+          echo "$PWD/.tools" >> "$GITHUB_PATH"
 
       - name: Verificar formatação (StyLua)
-        run: stylua --check src
+        run: stylua --check src tests --verbose
 
       - name: Lint (selene)
-        run: selene src
+        run: selene --version && selene src
+
+  test:
+    name: Test (lune)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Instalar ferramentas (versões fixas + sha256)
+        run: |
+          ./scripts/install-tools.sh
+          echo "$PWD/.tools" >> "$GITHUB_PATH"
+
+      - name: Testes unitários (lune)
+        run: lune --version && lune run tests/run.luau
 
   build:
     name: Build (Rojo)
@@ -46,16 +62,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Instalar ferramentas (Rokit)
-        uses: CompeyDev/setup-rokit@v0.2.1
-        with:
-          cache: "true"
+      - name: Instalar ferramentas (versões fixas + sha256)
+        run: |
+          ./scripts/install-tools.sh
+          echo "$PWD/.tools" >> "$GITHUB_PATH"
 
       - name: Gerar xoblor.rbxl
         run: rojo build default.project.json -o xoblor.rbxl
 
       - name: Publicar artefato
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: xoblor-rbxl
           path: xoblor.rbxl

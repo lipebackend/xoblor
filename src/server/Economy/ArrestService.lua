@@ -81,18 +81,32 @@ function ArrestService.Arrest(cop, target)
 	for _, r in plan do
 		local victim = Players:GetPlayerByUserId(r.u)
 		if victim and Economy.IsLoaded(victim) and Economy.SpendCoins(target, r.v, "arrest:refund") then
-			if Economy.AddCoins(victim, r.v, "robbery:refund") then
-				refunded += r.v
-			else
-				Economy.AddCoins(target, r.v, "arrest:refund_undo")
+			-- AddCoins pode creditar menos que r.v (vítima perto do teto): o que não coube volta ao preso
+			local added, _, credited = Economy.AddCoins(victim, r.v, "robbery:refund")
+			credited = added and credited or 0
+			refunded += credited
+			if credited < r.v then
+				Economy.AddCoins(target, r.v - credited, "arrest:refund_undo")
 			end
 		end
 	end
 
 	JailState.Jail(target, sentence, "assalto")
 	teleport(target, "Jail")
-	warn(("[Arrest] %d prendeu %d: %ds, multa %d, devolvido %d"):format(cop.UserId, target.UserId, sentence, fine, refunded))
-	arrestedEvent:FireClient(target, "prisoner", { By = cop.UserId, Sentence = sentence, Fine = fine, Refunded = refunded })
+	warn(
+		("[Arrest] %d prendeu %d: %ds, multa %d, devolvido %d"):format(
+			cop.UserId,
+			target.UserId,
+			sentence,
+			fine,
+			refunded
+		)
+	)
+	arrestedEvent:FireClient(
+		target,
+		"prisoner",
+		{ By = cop.UserId, Sentence = sentence, Fine = fine, Refunded = refunded }
+	)
 	arrestedEvent:FireClient(cop, "cop", { Target = target.UserId, Sentence = sentence, Fine = fine })
 	return true, sentence
 end

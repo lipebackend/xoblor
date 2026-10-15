@@ -78,7 +78,15 @@ return function(T)
 
 	describe("MedicLogic.CanRevive", function()
 		local function base(o)
-			local a = { IsMedic = true, MedicDowned = false, MedicJailed = false, CooldownUntil = 0, TargetDowned = true, Distance = 3, Now = 1000 }
+			local a = {
+				IsMedic = true,
+				MedicDowned = false,
+				MedicJailed = false,
+				CooldownUntil = 0,
+				TargetDowned = true,
+				Distance = 3,
+				Now = 1000,
+			}
 			for k, v in pairs(o or {}) do
 				a[k] = v
 			end

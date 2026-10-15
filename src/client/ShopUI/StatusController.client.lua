@@ -615,7 +615,10 @@ task.spawn(function()
 				Color3.fromRGB(0, 120, 50)
 			)
 		elseif kind == "hospital" then
-			toast(("Levado ao hospital: -%s"):format(Catalog.FormatReais(tonumber(info.Fee) or 0)), Color3.fromRGB(90, 90, 90))
+			toast(
+				("Levado ao hospital: -%s"):format(Catalog.FormatReais(tonumber(info.Fee) or 0)),
+				Color3.fromRGB(90, 90, 90)
+			)
 		elseif kind == "call" and typeof(info.Position) == "Vector3" then
 			toast(("🚑 %s precisa de médico!"):format(nameOf(info.From)), Color3.fromRGB(140, 20, 20))
 			local pin = make("Part", {

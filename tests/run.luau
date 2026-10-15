@@ -2,7 +2,18 @@
 local process = require("@lune/process")
 local T = require("./TestRunner")
 
-for _, name in { "RideLogic.spec", "InteractLogic.spec", "ArrestLogic.spec", "MedicLogic.spec" } do
+for _, name in
+	{
+		"EconomyLogic.spec",
+		"NeedsLogic.spec",
+		"RobberyLogic.spec",
+		"AfkLogic.spec",
+		"RideLogic.spec",
+		"InteractLogic.spec",
+		"ArrestLogic.spec",
+		"MedicLogic.spec",
+	}
+do
 	require("./" .. name)(T)
 end
 
