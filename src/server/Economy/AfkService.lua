@@ -1,6 +1,8 @@
 -- Detecção de AFK no servidor: deslocamento do HumanoidRootPart e ações recebidas pelo servidor.
 -- Nunca confia num "estou ativo" do cliente. Player.Idled é só sinal auxiliar (ver AfkLogic.MarkIdled).
 local Players = game:GetService("Players")
+local CollectionService = game:GetService("CollectionService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
 local Logic = require(script.Parent.AfkLogic)
 local Config = require(script.Parent.AfkConfig)
 
@@ -26,11 +28,36 @@ local function stateOf(player)
 	return s
 end
 
-function AfkService.MarkActive(player)
+-- Atividade = movimento (amostras abaixo) ou interação real da lista em AfkConfig.INTERACTIONS.
+-- Chamadas de remote NÃO contam: um script de exploit chama remotes sem sair do lugar.
+function AfkService.MarkInteraction(player)
 	if typeof(player) == "Instance" and player:IsA("Player") then
-		Logic.MarkActive(stateOf(player), now())
+		Logic.MarkInteraction(stateOf(player), now(), Config)
 	end
 end
+
+-- Tipo de interação de um ProximityPrompt (nil se não está na lista).
+function AfkService.Classify(prompt)
+	local kind = prompt.Name
+	local door = prompt.Parent
+	if door and door.Name == "Door" then
+		local m = door:FindFirstAncestorOfClass("Model")
+		while m and not CollectionService:HasTag(m, "House") do
+			m = m:FindFirstAncestorOfClass("Model")
+		end
+		if m then
+			kind = "HouseDoor"
+		end
+	end
+	return Config.INTERACTIONS[kind] and kind or nil
+end
+
+-- PromptTriggered só dispara no servidor depois da checagem de distância/hold do próprio engine.
+ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
+	if AfkService.Classify(prompt) then
+		AfkService.MarkInteraction(player)
+	end
+end)
 
 -- Chamar depois de teleportar o jogador pelo servidor.
 function AfkService.NotifyTeleport(player)

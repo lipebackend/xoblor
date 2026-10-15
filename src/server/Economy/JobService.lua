@@ -10,6 +10,7 @@ local Data = require(script.Parent.DataStoreHandler)
 local RemoteUtil = require(script.Parent.RemoteUtil)
 local JailState = require(script.Parent.JailState)
 local Afk = require(script.Parent.AfkService)
+local SalaryLogic = require(script.Parent.SalaryLogic)
 local JobCatalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("JobCatalog"))
 
 local JobService = {}
@@ -96,6 +97,11 @@ local function pay(player, jobId, reason)
 	if not extra or extra.Job ~= jobId then
 		return false, "NotEmployed"
 	end
+	-- preso não recebe (salário nem corrida); checado na hora de pagar
+	local denied = SalaryLogic.Check({ Jailed = JailState.IsJailed(player) })
+	if denied then
+		return false, denied
+	end
 	local xp = extra.JobXP[jobId] or 0
 	local amount = JobCatalog.SalaryFor(jobId, xp, isVip(player) and VIP_MULTIPLIER or 1)
 	local ok, res = Economy.AddCoins(player, amount, reason)
@@ -119,6 +125,7 @@ local function hookStation(part)
 		return
 	end
 	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "JobPrompt" -- conta como atividade (AfkConfig.INTERACTIONS)
 	prompt.ActionText = "Trabalhar"
 	prompt.ObjectText = job.Name
 	prompt.HoldDuration = 0.5
@@ -127,7 +134,6 @@ local function hookStation(part)
 		if not rateOk(player) then
 			return
 		end
-		Afk.MarkActive(player)
 		if JobService.GetJob(player) == jobId then
 			JobService.SetJob(player, nil)
 		else
@@ -160,8 +166,12 @@ task.spawn(function()
 		for _, p in Players:GetPlayers() do
 			local jobId = JobService.GetJob(p)
 			local job = jobId and JobCatalog.Get(jobId)
-			-- sem salário para quem está AFK (sem mover nem agir há AfkConfig.TIMEOUT)
-			if job and not job.PayPerRide and not Afk.IsAfk(p) then
+			-- salário periódico: sem AFK e sem preso (SalaryLogic)
+			if
+				job
+				and not job.PayPerRide
+				and not SalaryLogic.Check({ Afk = Afk.IsAfk(p), Jailed = JailState.IsJailed(p) })
+			then
 				task.spawn(pay, p, jobId, "job:" .. jobId)
 			end
 		end
