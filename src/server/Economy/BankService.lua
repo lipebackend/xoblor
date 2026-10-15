@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local Logic = require(script.Parent.EconomyLogic)
 
 local BankService = {}
 local PIX_LIMIT = 5000
@@ -83,13 +84,7 @@ function BankService.Withdraw(player, amount)
 end
 
 local function pixUsed(extra, now)
-	local used, kept = 0, {}
-	for _, e in ipairs(extra.PixLog) do
-		if now - e.t < PIX_WINDOW then
-			used += e.v
-			table.insert(kept, e)
-		end
-	end
+	local used, kept = Logic.PixUsed(extra.PixLog, now, PIX_WINDOW)
 	extra.PixLog = kept
 	return used
 end

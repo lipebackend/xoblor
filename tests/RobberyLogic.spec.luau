@@ -1,0 +1,65 @@
+local R = require("../src/server/Economy/RobberyLogic")
+
+return function(T)
+	local describe, it, eq = T.describe, T.it, T.eq
+	local function st(c, p, w)
+		return R.NormalizeState({ RobCooldownUntil = c, ProtectedUntil = p, WantedUntil = w })
+	end
+
+	describe("RobberyLogic.NormalizeState", function()
+		it("estado ausente ou corrompido vira zeros", function()
+			local s = R.NormalizeState(nil)
+			eq(s.RobCooldownUntil, 0)
+			s = R.NormalizeState({ ProtectedUntil = "x" })
+			eq(s.ProtectedUntil, 0)
+		end)
+	end)
+
+	describe("RobberyLogic.Check", function()
+		it("permite quando livre", function()
+			eq(R.Check(st(), st(), 1000, false), nil)
+		end)
+		it("polícia não rouba", function()
+			eq(R.Check(st(), st(), 1000, true), "SameTeamPolice")
+		end)
+		it("cooldown do ladrão", function()
+			eq(R.Check(st(1001), st(), 1000, false), "Cooldown")
+			eq(R.Check(st(1000), st(), 1000, false), nil)
+		end)
+		it("alvo protegido", function()
+			eq(R.Check(st(), st(0, 1500), 1000, false), "TargetProtected")
+		end)
+	end)
+
+	describe("RobberyLogic.Amount", function()
+		it("percentual truncado", function()
+			eq(R.Amount(1000, 10), 100)
+			eq(R.Amount(99, 10), 9)
+		end)
+		it("carteira pequena dá 0 (TargetEmpty no serviço)", function()
+			eq(R.Amount(5, 10), 0)
+		end)
+		it("teto de 2000", function()
+			eq(R.Amount(1e9, 30), 2000)
+		end)
+		it("nunca passa da carteira", function()
+			for w = 0, 500, 7 do
+				for p = R.MIN_PCT, R.MAX_PCT do
+					T.truthy(R.Amount(w, p) <= w)
+				end
+			end
+		end)
+	end)
+
+	describe("RobberyLogic.ApplySuccess", function()
+		it("aplica cooldown, procurado e proteção", function()
+			local rs, ts = st(), st()
+			R.ApplySuccess(rs, ts, 1000)
+			eq(rs.RobCooldownUntil, 1300)
+			eq(rs.WantedUntil, 1120)
+			eq(ts.ProtectedUntil, 1180)
+			eq(R.Check(rs, st(), 1299, false), "Cooldown")
+			eq(R.Check(st(), ts, 1179, false), "TargetProtected")
+		end)
+	end)
+end
