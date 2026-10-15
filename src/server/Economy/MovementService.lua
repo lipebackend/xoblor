@@ -1,9 +1,10 @@
 -- Amostra a posição de cada jogador no servidor e detecta saltos impossíveis (teleporte do cliente).
 -- Depois de um salto, assalto, reanimação e prisão ficam bloqueados por alguns segundos.
--- Só registra (warn): não expulsa nem gera Flag. Regras em MoveLogic.
+-- Só registra (SecurityLog, evento movement_jump): não expulsa nem gera Flag. Regras em MoveLogic.
 -- Teleportes do próprio servidor devem chamar MovementService.AllowTeleport(player) antes de mover.
 local Players = game:GetService("Players")
 local Logic = require(script.Parent.MoveLogic)
+local SecurityLog = require(script.Parent.SecurityLog)
 
 local MovementService = {}
 local Config = Logic.Config
@@ -42,12 +43,11 @@ local function sample(player)
 	local seatSpeed = (seat and seat:IsA("VehicleSeat")) and seat.MaxSpeed or nil
 	local maxSpeed = Logic.MaxSpeed(hum.WalkSpeed, seatSpeed)
 	if Logic.Sample(s, root.Position, os.clock(), maxSpeed) == "jump" then
-		warn(
-			("[Movement] salto impossível de %d (%d no total); ações físicas bloqueadas por %ds"):format(
-				player.UserId,
-				s.Jumps,
-				Config.BLOCK_SECONDS
-			)
+		SecurityLog.Record(
+			player,
+			"movement_jump",
+			"Movement",
+			("jumps=%d block=%ds"):format(s.Jumps, Config.BLOCK_SECONDS)
 		)
 	end
 end
