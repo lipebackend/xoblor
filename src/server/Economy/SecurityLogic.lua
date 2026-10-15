@@ -14,8 +14,8 @@ SecurityLogic.EVENTS = {
 }
 
 -- Strikes do RemoteUtil.Flag: janela fixa de `window` s a partir do primeiro strike.
--- Retorna o estado (novo ou o mesmo), o número de strikes na janela e se deve expulsar
--- (exatamente quando chega a `max`, para registrar o kick uma vez só).
+-- Retorna o estado (novo ou o mesmo), o número de strikes na janela e se deve expulsar:
+-- verdadeiro sempre que strikes >= `max` (o primeiro Kick já tira o jogador do servidor).
 function SecurityLogic.Strike(state, now, window, max)
 	if state == nil or now - state.since > window then
 		state = { n = 0, since = now }
@@ -24,14 +24,45 @@ function SecurityLogic.Strike(state, now, window, max)
 	return state, state.n, state.n >= max
 end
 
-local function clean(v, max)
-	local s = tostring(v == nil and "" or v)
-	s = s:gsub("[%c]", " ") -- sem quebra de linha: uma entrada por linha no log
-	if #s > max then
-		s = s:sub(1, max) .. "…"
+-- Troca bytes que não formam UTF-8 válido por "?" (nunca propaga lixo ao log).
+local function validUtf8(s)
+	local out = {}
+	local i = 1
+	while i <= #s do
+		local ok, bad = utf8.len(s, i)
+		if ok then
+			table.insert(out, s:sub(i))
+			break
+		end
+		table.insert(out, s:sub(i, bad - 1) .. "?")
+		i = bad + 1
 	end
-	return s
+	return table.concat(out)
 end
+SecurityLogic.ValidUtf8 = validUtf8
+
+-- Corta em no máximo `max` bytes sem partir uma sequência multibyte (s já é UTF-8 válido).
+local function truncate(s, max)
+	if #s <= max then
+		return s
+	end
+	local j = max
+	-- recua enquanto o próximo byte for de continuação (10xxxxxx)
+	while j > 0 and bit32.band(s:byte(j + 1), 0xC0) == 0x80 do
+		j -= 1
+	end
+	return s:sub(1, j) .. "…"
+end
+SecurityLogic.Truncate = truncate
+
+local function clean(v, max)
+	local s = validUtf8(tostring(v == nil and "" or v))
+	s = s:gsub("[%c]", " ") -- sem quebra de linha: uma entrada por linha no log
+	-- separadores Unicode que também quebram linha: NEL, U+2028 e U+2029
+	s = s:gsub("\u{0085}", " "):gsub("\u{2028}", " "):gsub("\u{2029}", " ")
+	return truncate(s, max)
+end
+SecurityLogic.Clean = clean
 
 -- Monta a entrada estruturada.
 function SecurityLogic.Entry(event, userId, context, details, timestamp)
