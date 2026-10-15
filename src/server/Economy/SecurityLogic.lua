@@ -10,7 +10,19 @@ SecurityLogic.EVENTS = {
 	session_lock_lost = true, -- trava de sessão do DataStore tomada por outro servidor
 	flag = true, -- outras suspeitas (corrida, Pix acima do limite)
 	admin_denied = true, -- não-admin tentou consultar a telemetria
+	kick = true, -- expulso por strikes (RemoteUtil.Flag), registrado ANTES do Kick
 }
+
+-- Strikes do RemoteUtil.Flag: janela fixa de `window` s a partir do primeiro strike.
+-- Retorna o estado (novo ou o mesmo), o número de strikes na janela e se deve expulsar
+-- (exatamente quando chega a `max`, para registrar o kick uma vez só).
+function SecurityLogic.Strike(state, now, window, max)
+	if state == nil or now - state.since > window then
+		state = { n = 0, since = now }
+	end
+	state.n += 1
+	return state, state.n, state.n >= max
+end
 
 local function clean(v, max)
 	local s = tostring(v == nil and "" or v)

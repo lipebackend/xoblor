@@ -25,7 +25,15 @@ return function(T)
 		end)
 		it("tipos de evento do jogo estão registrados", function()
 			for _, k in
-				{ "rate_limit", "invalid_payload", "movement_jump", "session_lock_lost", "flag", "admin_denied" }
+				{
+					"rate_limit",
+					"invalid_payload",
+					"movement_jump",
+					"session_lock_lost",
+					"flag",
+					"admin_denied",
+					"kick",
+				}
 			do
 				eq(S.EVENTS[k], true, k)
 			end
@@ -90,6 +98,34 @@ return function(T)
 			eq(S.IsAdmin(list, 0 / 0), false)
 			eq(S.IsAdmin(list, -111), false)
 			eq(S.IsAdmin(list, nil), false)
+		end)
+	end)
+	describe("SecurityLogic.Strike (kick do RemoteUtil.Flag)", function()
+		it("expulsa exatamente no 30º strike dentro de 60s", function()
+			local st, n, kick
+			for i = 1, 29 do
+				st, n, kick = S.Strike(st, i, 60, 30)
+				eq(kick, false)
+			end
+			st, n, kick = S.Strike(st, 29.5, 60, 30)
+			eq(n, 30)
+			eq(kick, true)
+		end)
+		it("janela expirada recomeça a contagem", function()
+			local st = nil
+			for i = 1, 29 do
+				st = S.Strike(st, i * 0.1, 60, 30)
+			end
+			local _, n, kick = S.Strike(st, 100, 60, 30)
+			eq(n, 1)
+			eq(kick, false)
+		end)
+		it("limite de janela: 60s ainda conta, depois recomeça", function()
+			local st = S.Strike(nil, 0, 60, 30)
+			local _, n = S.Strike(st, 60, 60, 30)
+			eq(n, 2)
+			local _, n2 = S.Strike(st, 60.1, 60, 30)
+			eq(n2, 1)
 		end)
 	end)
 end

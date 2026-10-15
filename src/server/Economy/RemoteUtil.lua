@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Guard = require(script.Parent.RemoteGuard)
 local SecurityLog = require(script.Parent.SecurityLog)
+local SecurityLogic = require(script.Parent.SecurityLogic)
 
 local RemoteUtil = {}
 local folder = ReplicatedStorage:WaitForChild("Remotes")
@@ -18,15 +19,17 @@ end)
 -- Registra comportamento suspeito (SecurityLog) e expulsa quem insiste (regra antiga, mantida).
 -- event: tipo em SecurityLogic.EVENTS (padrão "flag"); context: remote ou sistema.
 function RemoteUtil.Flag(player, what, event, context)
-	local now = os.clock()
-	local s = strikes[player]
-	if not s or now - s.since > STRIKE_WINDOW then
-		s = { n = 0, since = now }
-		strikes[player] = s
-	end
-	s.n += 1
-	SecurityLog.Record(player, event or "flag", context or "", ("%s [strike %d]"):format(tostring(what), s.n))
-	if s.n >= MAX_STRIKES and player.Parent then
+	local s, n, kick = SecurityLogic.Strike(strikes[player], os.clock(), STRIKE_WINDOW, MAX_STRIKES)
+	strikes[player] = s
+	SecurityLog.Record(player, event or "flag", context or "", ("%s [strike %d]"):format(tostring(what), n))
+	if kick and player.Parent then
+		-- registra antes de expulsar (depois do Kick o jogador some e o contador é limpo)
+		SecurityLog.Record(
+			player,
+			"kick",
+			context or "",
+			("%d strikes em %ds; último: %s"):format(n, STRIKE_WINDOW, tostring(what))
+		)
 		player:Kick("Atividade suspeita detectada.")
 	end
 end
