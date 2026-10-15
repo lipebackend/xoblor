@@ -8,6 +8,7 @@ local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
 local NeedsService = require(script.Parent.NeedsService)
 local Catalog = require(RS.Shared.ShopCatalog)
+local JailState = require(script.Parent.JailState)
 
 local function grant(player, item, _extra)
 	if item.Category == "Comida" then
@@ -43,6 +44,9 @@ RemoteUtil.BindFunction("RequestPurchase", 0.5, 2, function(player, itemId)
 	end
 	if not Economy.IsLoaded(player) then
 		return false, "NotLoaded"
+	end
+	if not JailState.Allowed(player, "Buy") then
+		return false, "Jailed"
 	end
 	if item.RequiredJob and JobService.GetJob(player) ~= item.RequiredJob then
 		return false, "WrongJob"

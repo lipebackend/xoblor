@@ -14,6 +14,7 @@ local CLOSE_TIMEOUT = 25 -- BindToClose tem 30s no total
 
 local Handler = {}
 local extraData = {}
+local jailData = {} -- [player] = campo Jail de nível superior ({ EndsAt, Reason }), lido como veio
 local saving = {} -- [player] = true enquanto um save está em andamento
 
 local function key(p)
@@ -65,6 +66,7 @@ local function doSave(player, release)
 			return {
 				Coins = coins,
 				Extra = extra,
+				Jail = jailData[player],
 				Version = 1,
 				SessionJobId = (not release) and game.JobId or nil,
 				SessionTime = os.time(),
@@ -154,11 +156,21 @@ local function load(player)
 		return
 	end
 	extraData[player] = type(data.Extra) == "table" and data.Extra or {}
+	jailData[player] = data.Jail -- validado por quem lê (JailState/ArrestLogic.Normalize)
 	Economy.Init(player, data.Coins)
 end
 
 function Handler.GetExtra(player)
 	return extraData[player]
+end
+
+-- Campo Jail de nível superior. Ausente ou EndsAt = 0 = solto.
+function Handler.GetJail(player)
+	return jailData[player]
+end
+
+function Handler.SetJail(player, jail)
+	jailData[player] = jail
 end
 
 function Handler.SaveNow(player)
@@ -180,6 +192,7 @@ local function saveAndRelease(p)
 	save(p, true)
 	Economy.Release(p)
 	extraData[p] = nil
+	jailData[p] = nil
 	released[p] = nil
 end
 

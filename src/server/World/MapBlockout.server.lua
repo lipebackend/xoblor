@@ -67,6 +67,8 @@ local BAIRROS = {
 		Color3.fromRGB(150, 150, 150),
 		function(b, c)
 			tagged(b, "Delegacia", c + Vector3.new(-50, 1, 0), "JobStation", { JobId = "policial" })
+			tagged(b, "Cadeia", c + Vector3.new(-80, 1, -40), "Jail")
+			tagged(b, "Saida_Delegacia", c + Vector3.new(-50, 1, -15), "JailRelease")
 			tagged(b, "Hospital", c + Vector3.new(50, 1, 0), "JobStation", { JobId = "medico" })
 			tagged(b, "Banco_ATM", c + Vector3.new(0, 1, 40), "Shop", { Category = "Banco" })
 			tagged(b, "Spawn_Viatura", c + Vector3.new(-50, 1, 30), "VehicleSpawn")

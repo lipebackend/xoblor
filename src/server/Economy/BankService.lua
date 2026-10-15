@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local JailState = require(script.Parent.JailState)
 
 local BankService = {}
 local PIX_LIMIT = 5000
@@ -104,6 +105,9 @@ function BankService.Pix(from, to, amount)
 	local extra = extraOf(from)
 	if not extra or not Economy.IsLoaded(to) then
 		return false, "NotLoaded"
+	end
+	if not JailState.Allowed(from, "Pix") then
+		return false, "Jailed"
 	end
 	local now = os.time()
 	if pixUsed(extra, now) + amount > PIX_LIMIT then
