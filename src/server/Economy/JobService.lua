@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local JailState = require(script.Parent.JailState)
 local Afk = require(script.Parent.AfkService)
 local JobCatalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("JobCatalog"))
 
@@ -78,6 +79,9 @@ function JobService.SetJob(player, jobId)
 	end
 	if jobId ~= nil and not JobCatalog.Get(jobId) then
 		return false, "UnknownJob"
+	end
+	if jobId ~= nil and not JailState.Allowed(player, "Job") then
+		return false, "Jailed"
 	end
 	extra.Job = jobId
 	applyTeam(player, jobId)

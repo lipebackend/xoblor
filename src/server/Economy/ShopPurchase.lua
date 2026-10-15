@@ -8,6 +8,7 @@ local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
 local NeedsService = require(script.Parent.NeedsService)
 local Catalog = require(RS.Shared.ShopCatalog)
+local JailState = require(script.Parent.JailState)
 
 local ShopPurchase = {}
 
@@ -45,6 +46,10 @@ function ShopPurchase.Purchase(player, itemId)
 	end
 	if not Economy.IsLoaded(player) then
 		return false, "NotLoaded"
+	end
+	-- preso não compra (menu e lojas do mapa passam por aqui)
+	if not JailState.Allowed(player, "Buy") then
+		return false, "Jailed"
 	end
 	if item.RequiredJob and JobService.GetJob(player) ~= item.RequiredJob then
 		return false, "WrongJob"

@@ -146,6 +146,8 @@ task.spawn(function()
 			SameTeamPolice = "Policial não rouba",
 			RateLimited = "Calma aí",
 			TargetGone = "O alvo saiu do servidor",
+			Jailed = "Você está preso",
+			TargetJailed = "Alvo está preso",
 			ServerError = "Erro, tente de novo",
 		}
 		r.OnClientEvent:Connect(function(success, value, targetUserId)
@@ -180,6 +182,157 @@ task.spawn(function()
 		timers.Text = table.concat(parts, "  •  ")
 		me:SetAttribute("RobCooldownLeft", math.max(0, (state.RobCooldownUntil or 0) - now))
 		task.wait(1)
+	end
+end)
+
+-- Polícia e cadeia (ArrestService) ------------------------------------------
+-- Atributos do servidor: Player.Wanted (procurado) e Player.JailLeft (segundos de pena restantes).
+local jailLabel = make("TextLabel", {
+	Size = UDim2.fromOffset(230, 30),
+	Position = UDim2.fromOffset(10, 418),
+	BackgroundColor3 = Color3.fromRGB(60, 60, 90),
+	TextColor3 = Color3.new(1, 1, 1),
+	TextScaled = true,
+	Text = "",
+	Visible = false,
+	Parent = gui,
+}, { corner() })
+
+local function isPolice()
+	return me.Team ~= nil and me.Team.Name == "Polícia"
+end
+
+local ARREST_ERR = {
+	NotPolice = "Só a polícia prende",
+	Jailed = "Você está preso",
+	Cooldown = "Espere para prender de novo",
+	AlreadyJailed = "Já está preso",
+	NotWanted = "Não está procurado",
+	TooFar = "Chegue mais perto",
+	TargetGone = "Saiu do servidor",
+	RateLimited = "Calma aí",
+	ServerError = "Erro, tente de novo",
+}
+
+-- placa 🚨 para todos e prompt "Prender" só para policiais, no personagem de cada procurado
+local marks = {} -- [player] = { board, prompt }
+local function clearMark(p)
+	local m = marks[p]
+	if m then
+		m.board:Destroy()
+		m.prompt:Destroy()
+		marks[p] = nil
+	end
+end
+local function refreshMark(p)
+	local root = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+	local wantedNow = p:GetAttribute("Wanted") == true and p:GetAttribute("JailLeft") == nil
+	if not wantedNow or not root then
+		clearMark(p)
+		return
+	end
+	local m = marks[p]
+	if not m or m.board.Adornee ~= root then
+		clearMark(p)
+		local board = make("BillboardGui", {
+			Size = UDim2.fromOffset(140, 36),
+			StudsOffset = Vector3.new(0, 4, 0),
+			AlwaysOnTop = true,
+			Adornee = root,
+			Parent = gui,
+		}, {
+			make("TextLabel", {
+				Size = UDim2.fromScale(1, 1),
+				BackgroundTransparency = 1,
+				TextColor3 = Color3.fromRGB(255, 60, 60),
+				TextStrokeTransparency = 0,
+				TextScaled = true,
+				Text = "🚨 PROCURADO",
+			}),
+		})
+		local prompt = make("ProximityPrompt", {
+			ActionText = "Prender",
+			ObjectText = p.DisplayName,
+			HoldDuration = 1,
+			MaxActivationDistance = 8,
+			RequiresLineOfSight = false,
+			Parent = root,
+		})
+		local userId = p.UserId
+		prompt.Triggered:Connect(function()
+			local arrest = Remotes:FindFirstChild("Arrest")
+			if arrest then
+				local ok, res = arrest:InvokeServer(userId)
+				if not ok then
+					toast(ARREST_ERR[res] or tostring(res), Color3.fromRGB(90, 90, 90))
+				end
+			end
+		end)
+		m = { board = board, prompt = prompt }
+		marks[p] = m
+	end
+	m.prompt.Enabled = isPolice() and p ~= me
+end
+local function watchPlayer(p)
+	p:GetAttributeChangedSignal("Wanted"):Connect(function()
+		refreshMark(p)
+	end)
+	p:GetAttributeChangedSignal("JailLeft"):Connect(function()
+		refreshMark(p)
+	end)
+	p.CharacterAdded:Connect(function(char)
+		char:WaitForChild("HumanoidRootPart", 5)
+		refreshMark(p)
+	end)
+	refreshMark(p)
+end
+Players.PlayerAdded:Connect(watchPlayer)
+Players.PlayerRemoving:Connect(clearMark)
+for _, p in Players:GetPlayers() do
+	watchPlayer(p)
+end
+me:GetPropertyChangedSignal("Team"):Connect(function()
+	for _, p in Players:GetPlayers() do
+		refreshMark(p)
+	end
+end)
+
+task.spawn(function()
+	local r = Remotes:WaitForChild("Arrested", 60)
+	if not r then
+		return
+	end
+	r.OnClientEvent:Connect(function(role, info)
+		info = type(info) == "table" and info or {}
+		if role == "prisoner" then
+			toast(
+				("Preso por %s: %ds, multa %s"):format(
+					nameOf(info.By),
+					tonumber(info.Sentence) or 0,
+					Catalog.FormatReais(tonumber(info.Fine) or 0)
+				),
+				Color3.fromRGB(60, 60, 90)
+			)
+		elseif role == "cop" then
+			toast(
+				("Você prendeu %s: +%s"):format(nameOf(info.Target), Catalog.FormatReais(tonumber(info.Fine) or 0)),
+				Color3.fromRGB(0, 60, 160)
+			)
+		elseif role == "released" then
+			toast("Você foi solto", Color3.fromRGB(0, 120, 50))
+		end
+	end)
+end)
+
+-- timer da cadeia (só exibição)
+task.spawn(function()
+	while true do
+		local left = tonumber(me:GetAttribute("JailLeft")) or 0
+		jailLabel.Visible = left > 0
+		if left > 0 then
+			jailLabel.Text = "🔒 PRESO " .. fmt(left)
+		end
+		task.wait(0.5)
 	end
 end)
 

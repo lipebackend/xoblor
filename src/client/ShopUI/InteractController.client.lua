@@ -32,6 +32,7 @@ local ERR = {
 	WrongJob = "Emprego errado",
 	AlreadyOwned = "Já tem",
 	WrongStore = "Não vende aqui",
+	Jailed = "Você está preso",
 	TooFar = "Chegue mais perto",
 	Expired = "Abra de novo",
 	NoSession = "Abra de novo",

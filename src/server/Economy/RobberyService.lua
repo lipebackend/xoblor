@@ -5,6 +5,7 @@ local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local JobService = require(script.Parent.JobService)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local JailState = require(script.Parent.JailState)
 local Logic = require(script.Parent.RobberyLogic)
 local EconomyLogic = require(script.Parent.EconomyLogic)
 
@@ -27,6 +28,8 @@ local function stateOf(player)
 		return nil
 	end
 	local s = Logic.NormalizeState(extra.Robbery)
+	s.Loot = tonumber(s.Loot) or 0 -- roubado desde que ficou procurado (pena/devolução)
+	s.Victims = type(s.Victims) == "table" and s.Victims or {}
 	extra.Robbery = s
 	return s
 end
@@ -53,9 +56,12 @@ end
 local function notify(player)
 	local state = RobberyService.GetState(player)
 	if state then
+		-- atributo replicado: todos os clientes veem quem está procurado (placa e prompt da polícia)
+		player:SetAttribute("Wanted", state.Wanted or nil)
 		stateEvent:FireClient(player, state)
 	end
 end
+RobberyService.Notify = notify
 
 local function rootOf(player)
 	local char = player.Character
@@ -76,6 +82,12 @@ function RobberyService.Rob(robber, target)
 	local rs, ts = stateOf(robber), stateOf(target)
 	if not rs or not ts then
 		return false, "NotLoaded"
+	end
+	if not JailState.Allowed(robber, "Rob") then
+		return false, "Jailed"
+	end
+	if JailState.IsJailed(target) then
+		return false, "TargetJailed"
 	end
 	local now = os.time()
 	local denied = Logic.Check(rs, ts, now, isPolice(robber))
@@ -111,12 +123,31 @@ function RobberyService.Rob(robber, target)
 		end
 		amount = credited
 	end
+	if rs.WantedUntil <= now then
+		rs.Loot, rs.Victims = 0, {} -- nova "ficha" a cada período de procurado
+	end
+	rs.Loot += amount
+	table.insert(rs.Victims, { u = target.UserId, v = amount })
 	Logic.ApplySuccess(rs, ts, now)
 	warn(("[Robbery] %d roubou %d de %d"):format(robber.UserId, amount, target.UserId))
 	robbedEvent:FireClient(target, robber.UserId, amount)
 	notify(robber)
 	notify(target)
 	return true, amount
+end
+
+RobberyService.IsPolice = isPolice
+
+-- Prisão: encerra o "procurado" e devolve o roubado no período e as vítimas.
+function RobberyService.ClearWanted(player)
+	local s = stateOf(player)
+	if not s then
+		return 0, {}
+	end
+	local loot, victims = s.Loot, s.Victims
+	s.WantedUntil, s.Loot, s.Victims = 0, 0, {}
+	notify(player)
+	return loot, victims
 end
 
 -- RobAttempt: 1 chamada a cada 0,5s. Payload inválido gera Flag (via BindFunction).

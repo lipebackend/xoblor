@@ -55,6 +55,7 @@ local ERR = {
 	PixLimit = "Limite do Pix",
 	Occupied = "Ocupada",
 	NoSpawnNearby = "Vá a um estacionamento",
+	Jailed = "Você está preso",
 	ServerError = "Erro, tente de novo",
 }
 local function err(res)
