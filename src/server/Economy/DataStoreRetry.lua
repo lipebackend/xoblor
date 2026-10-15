@@ -67,8 +67,13 @@ end
 
 -- Classe curta do erro: o código HTTP ("... HTTP 429 ...") se houver, senão o primeiro código de
 -- 3 dígitos (500, 502...), senão "error". Nunca devolve o texto do erro (pode citar chave/valor).
+-- Só strings são lidas: tostring de tabela/função/userdata traz o endereço (ex.: "table: 0x...290"),
+-- que poderia virar um código falso.
 function DataStoreRetry.ErrorClass(err)
-	local s = tostring(err)
+	if type(err) ~= "string" then
+		return "error"
+	end
+	local s = err
 	return s:match("HTTP (%d%d%d)%f[%D]") or s:match("%f[%d](%d%d%d)%f[%D]") or "error"
 end
 
