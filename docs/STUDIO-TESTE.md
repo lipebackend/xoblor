@@ -112,7 +112,7 @@ Reinicie com **3 Players**: Player1 = A (ladrão), Player2 = B (vítima), Player
 
 ## Avisos antes das partes 4 a 7
 
-- **UserIds negativos no Local Server.** Em *Clients and Servers* com 2 ou mais players, os jogadores de teste têm UserId negativo (Player1 = -1, Player2 = -2...). Desde o #36, os remotes que recebem o UserId de outro jogador (`RobAttempt`, `Arrest`, `Revive`, `Pix`, `HouseAction` invite) exigem UserId ≥ 1. Por isso, no Local Server, esses remotes chamados pela UI devolvem `Invalid` e geram strike. Isso afeta também o assalto e a prisão da parte 3 (ver "Dúvidas" no PR). Nas partes abaixo, as ações entre jogadores são chamadas direto no módulo do servidor, pela Command Bar do servidor, que não passa pelo remote.
+- **UserIds negativos no Local Server.** Em *Clients and Servers* com 2 ou mais players, os jogadores de teste têm UserId negativo (Player1 = -1, Player2 = -2...). Desde o #36, os remotes que recebem o UserId de outro jogador (`RobAttempt`, `Arrest`, `Revive`, `Pix`, `HouseAction` invite) exigem UserId ≥ 1. Por isso, no Local Server, esses remotes chamados pela UI devolvem `Invalid` e geram strike. Isso afeta também o assalto e a prisão da parte 3 (ver "Dúvidas" no PR). Nas partes abaixo, as ações entre jogadores são chamadas direto no módulo do servidor, pela Command Bar do servidor, que não passa pelo remote. **Com o #41**, esse contorno deixa de ser necessário: no Studio (`RunService:IsStudio()`) UserIds negativos passam a ser aceitos, e a UI funciona no Local Server. Em produção continua exigindo UserId ≥ 1, e 0 é recusado nos dois modos.
 - **Command Bar.** Cada janela do teste (Server, Player1, Player2) tem a própria Command Bar (View > Command Bar), que roda no contexto daquela janela. "Servidor" e "cliente" abaixo dizem em qual janela rodar.
 - **Linha de segurança (#38).** Os eventos aparecem no Output do servidor neste formato:
   `[Security] event=<tipo> userId=<id> context="<remote/sistema>" details="<...>" ts=<os.time> count=<n>`
@@ -198,13 +198,13 @@ local R = game.ReplicatedStorage.Remotes
 
 **Local Server com 2 Players.** O servidor amostra a posição a cada 0,5s. Pulos, quedas, corrida com WalkSpeed do servidor e veículos (piso de 120 studs/s) são normais.
 
-1. **Andar, pular, cair e dirigir.** Ande, pule de um telhado e dirija a Bicicleta. **Esperado:** nenhuma linha `[Movement]`.
+1. **Andar, pular, cair e dirigir.** Ande, pule de um telhado e dirija a Bicicleta. **Esperado:** nenhuma linha `event=movement_jump`.
 2. **Teleporte pelo cliente (exploit).** Na Command Bar do **Player1**:
    ```lua
    local hrp = game.Players.LocalPlayer.Character.HumanoidRootPart
    hrp.CFrame = hrp.CFrame + Vector3.new(300, 0, 0)
    ```
-   **Esperado** no servidor: `[Movement] salto impossível de -1 (1 no total); ações físicas bloqueadas por 5s`. Nada de kick.
+   **Esperado** no servidor (desde o #39): `[Security] event=movement_jump userId=-1 context="Movement" details="jumps=1 block=5s" ts=... count=1`. Nada de kick. Como as outras linhas de segurança, imprime no máximo uma a cada 10s por jogador. O contador soma sempre.
 3. **Ações bloqueadas por 5s.** Logo depois do passo 2, aproxime o Player1 do Player2 (até 8 studs) e rode na Command Bar do **servidor**:
    ```lua
    local Eco = game.ServerScriptService.Economy
@@ -219,21 +219,21 @@ local R = game.ReplicatedStorage.Remotes
    local p = game.Players.Player1
    p.Character:PivotTo(p.Character:GetPivot() + Vector3.new(0, 0, 300))
    ```
-   **Esperado:** linha `[Movement]`. Só os teleportes da lista abaixo são liberados.
-5. **Teleportes liberados (sem `[Movement]`):**
+   **Esperado:** linha `event=movement_jump`. Só os teleportes da lista abaixo são liberados.
+5. **Teleportes liberados (sem `event=movement_jump`):**
    - respawn: resete o personagem;
    - casa: entre por uma porta de casa alugada/comprada;
    - cadeia e soltura: prisão pela Command Bar do servidor, com o Player2 procurado e perto: `require(Eco.ArrestService).Arrest(game.Players.Player1, game.Players.Player2)`, com o Player1 policial;
    - hospital: desmaio sem reanimação (#26);
    - manual: `require(Eco.MovementService).AllowTeleport(p)` e logo em seguida o `PivotTo` do passo 4. **Esperado:** sem linha.
-6. **WalkSpeed alto setado pelo servidor.** Rode `game.Players.Player1.Character.Humanoid.WalkSpeed = 100` no **servidor** e corra. **Esperado:** sem `[Movement]`. Com o mesmo valor setado no **cliente** (não replica), correr gera `[Movement]`.
+6. **WalkSpeed alto setado pelo servidor.** Rode `game.Players.Player1.Character.Humanoid.WalkSpeed = 100` no **servidor** e corra. **Esperado:** sem `event=movement_jump`. Com o mesmo valor setado no **cliente** (não replica), correr gera `event=movement_jump`.
 
-**Observação:** o salto de movimento ainda não vai para o SecurityLog (só `warn [Movement]`). Isso fica para um follow-up.
+**Observação:** desde o #39 o salto vai para o SecurityLog (`event=movement_jump`) e aparece na consulta de admin da parte 7.
 
 ## 7. Telemetria, admin e expulsão (#38)
 
 1. **Não-admin.** Na Command Bar do **Player1**: `print(game.ReplicatedStorage.Remotes.SecurityQuery:InvokeServer())`. **Esperado:** imprime nada (nil). No servidor: `[Security] event=admin_denied userId=-1 context="SecurityQuery" details="" ...`.
-2. **Admin.** `AdminConfig.ADMIN_USER_IDS` vem vazio, e UserIds negativos do Local Server nunca são admin. Para testar:
+2. **Admin.** `AdminConfig.ADMIN_USER_IDS` vem vazio, e UserIds negativos do Local Server nunca são admin. **Com o #41**, dá para pôr `-1` na lista e testar com o Player1 no Local Server, porque negativos valem só no Studio. Sem o #41, para testar:
    - coloque **temporariamente** o seu UserId real em `src/server/Economy/AdminConfig.lua`, rode `./setup.sh build`, reabra e use **Play solo (F5)**;
    - gere alguns eventos (passo 5.1);
    - rode no cliente:
