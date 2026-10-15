@@ -1,4 +1,5 @@
-# CI do xoblor: formatação (StyLua), lint (selene) e build do place com Rojo.
+# CI do xoblor: selene, StyLua e testes lune (matriz) e build do place com Rojo.
+# "Lint (StyLua + selene)" e "Build (Rojo)" são checks obrigatórios no ruleset da main: não renomear.
 name: CI
 
 on:
@@ -16,42 +17,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  checks:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Lint (selene)
+            run: selene --version && selene src
+          - name: Format (StyLua)
+            run: stylua --version && stylua --check src tests
+          - name: Test (lune)
+            run: lune --version && lune run tests/run.luau
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Só os zips são cacheados; install-tools.sh confere o sha256 de cada um antes de extrair.
+      - name: Cache das ferramentas
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/.dl
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh', 'rokit.toml') }}
+
+      - name: Instalar ferramentas (versões fixas + sha256)
+        run: |
+          ./scripts/install-tools.sh
+          echo "$PWD/.tools" >> "$GITHUB_PATH"
+
+      - name: ${{ matrix.name }}
+        run: ${{ matrix.run }}
+
+  # Mantém o nome do check obrigatório: passa só se todas as entradas da matriz passaram.
   lint:
     name: Lint (StyLua + selene)
+    needs: checks
+    if: always()
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 2
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Instalar ferramentas (versões fixas + sha256)
+      - name: Resultado da matriz
+        env:
+          RESULT: ${{ needs.checks.result }}
         run: |
-          ./scripts/install-tools.sh
-          echo "$PWD/.tools" >> "$GITHUB_PATH"
-
-      - name: Verificar formatação (StyLua)
-        run: stylua --check src tests --verbose
-
-      - name: Lint (selene)
-        run: selene --version && selene src
-
-  test:
-    name: Test (lune)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Instalar ferramentas (versões fixas + sha256)
-        run: |
-          ./scripts/install-tools.sh
-          echo "$PWD/.tools" >> "$GITHUB_PATH"
-
-      - name: Testes unitários (lune)
-        run: lune --version && lune run tests/run.luau
+          echo "checks: $RESULT"
+          test "$RESULT" = "success"
 
   build:
     name: Build (Rojo)
@@ -62,6 +75,12 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Cache das ferramentas
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/.dl
+          key: tools-${{ runner.os }}-${{ hashFiles('scripts/install-tools.sh', 'rokit.toml') }}
+
       - name: Instalar ferramentas (versões fixas + sha256)
         run: |
           ./scripts/install-tools.sh
@@ -70,10 +89,16 @@ jobs:
       - name: Gerar xoblor.rbxl
         run: rojo build default.project.json -o xoblor.rbxl
 
+      - name: SHA curto
+        id: sha
+        env:
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: echo "short=${SHA::7}" >> "$GITHUB_OUTPUT"
+
       - name: Publicar artefato
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: xoblor-rbxl
+          name: xoblor-rbxl-${{ steps.sha.outputs.short }}
           path: xoblor.rbxl
           if-no-files-found: error
           retention-days: 14
