@@ -1,21 +1,27 @@
-# Sessão de teste no Studio (#18, #20, #23)
+# Sessão de teste no Studio (#18, #20, #23, #27, #36, #37, #38)
 
 Este roteiro junta, numa ordem só, os testes no Studio dos PRs:
 
 - **#18**: corridas de mototaxi
 - **#20**: lojas e caixa eletrônico do mapa
 - **#23**: prisão, cadeia e soltura
+- **#27**: trava de sessão do DataStore e save no fechamento (BindToClose)
+- **#36**: rate limit e validação de argumentos dos remotes
+- **#37**: detecção de salto impossível e bloqueio de 5s das ações físicas
+- **#38**: telemetria de segurança, `SecurityQuery` de admin e expulsão por 30 strikes em 60s
 
-Dá para fazer tudo de uma vez, em cerca de 30 a 40 minutos.
+Todos já estão na `main`. As partes 1 a 3 levam cerca de 30 a 40 minutos, e as partes 4 a 7 mais uns 40.
 
 ## 0. Preparação
 
-1. Carregue o branch que tem os três PRs:
+1. Atualize a `main` e gere o place. **Sem plugin do Rojo:** usamos só o `setup.sh`.
    ```sh
    git fetch origin
-   git checkout feat/prisao   # contém #18 + #20 + #23
+   git checkout main && git pull
+   ./setup.sh build   # gera xoblor.rbxl (baixa as ferramentas fixadas, com sha256)
    ```
-2. Instale as ferramentas (`rokit install`) e rode `rojo serve`. No Studio, abra um place vazio e conecte pelo plugin do Rojo (Connect).
+   No Studio, abra o place em **File > Open from File** e escolha `xoblor.rbxl`.
+2. Depois de editar qualquer arquivo em `src/`, rode `./setup.sh build` de novo e reabra o `xoblor.rbxl` no Studio. Não há sincronização ao vivo.
 3. Confira que o mapa foi gerado: `Workspace/Map` com os bairros Copacabana, Centro, Zona Norte, Morro e Barra.
 4. Servidor local: na aba **Test**, em *Clients and Servers*, escolha **Local Server** com **2 Players** e clique em *Start*. Abre uma janela do servidor e duas de jogador (Player1 e Player2).
    - Na parte 3 (cadeia) precisamos de 3 jogadores (ladrão, vítima e policial). Pare o teste e reinicie com **3 Players** quando chegar lá.
@@ -33,7 +39,7 @@ Dá para fazer tudo de uma vez, em cerca de 30 a 40 minutos.
 | `src/server/Economy/RideLogic.lua`, `RIDE_TIMEOUT` | 300 | 20 | testar a expiração da corrida (passo 1.10) |
 | `src/server/Economy/ArrestLogic.lua`, `Config.VICTIM_REFUND` | false | true | testar a devolução às vítimas (passo 3.11) |
 
-O `rojo serve` aplica as mudanças na hora; reinicie o teste depois de editar. **Antes de encerrar, volte os dois valores e confira com `git status` / `git diff` que não sobrou nada.**
+Depois de editar, rode `./setup.sh build` e reabra o place. **Antes de encerrar, volte os dois valores e confira com `git status` / `git diff` que não sobrou nada.**
 
 ---
 
@@ -104,9 +110,154 @@ Reinicie com **3 Players**: Player1 = A (ladrão), Player2 = B (vítima), Player
 10. C tenta prender alguém que não está procurado, ou que está longe. **Esperado:** "Não está procurado" ou "Chegue mais perto".
 11. *(com `VICTIM_REFUND = true`)* Repita os passos 2 e 3 com B online. **Esperado:** B recebe o roubado de volta, limitado ao que sobrou na carteira de A depois da multa.
 
-## 4. Encerramento
+## Avisos antes das partes 4 a 7
 
-- [ ] `RIDE_TIMEOUT` voltou para 300 e `VICTIM_REFUND` voltou para false (`git diff` vazio).
+- **UserIds negativos no Local Server.** Em *Clients and Servers* com 2 ou mais players, os jogadores de teste têm UserId negativo (Player1 = -1, Player2 = -2...). Desde o #36, os remotes que recebem o UserId de outro jogador (`RobAttempt`, `Arrest`, `Revive`, `Pix`, `HouseAction` invite) exigem UserId ≥ 1. Por isso, no Local Server, esses remotes chamados pela UI devolvem `Invalid` e geram strike. Isso afeta também o assalto e a prisão da parte 3 (ver "Dúvidas" no PR). Nas partes abaixo, as ações entre jogadores são chamadas direto no módulo do servidor, pela Command Bar do servidor, que não passa pelo remote.
+- **Command Bar.** Cada janela do teste (Server, Player1, Player2) tem a própria Command Bar (View > Command Bar), que roda no contexto daquela janela. "Servidor" e "cliente" abaixo dizem em qual janela rodar.
+- **Linha de segurança (#38).** Os eventos aparecem no Output do servidor neste formato:
+  `[Security] event=<tipo> userId=<id> context="<remote/sistema>" details="<...>" ts=<os.time> count=<n>`
+  Cada combinação (jogador, evento) imprime no máximo **uma linha a cada 10s** (`AdminConfig.LOG_THROTTLE`). Os contadores somam todas as ocorrências, então o `count` da próxima linha impressa pode pular números.
+
+## 4. Trava de sessão e save no fechamento (#27)
+
+**Requisitos:** o DataStore só funciona no Studio com o place **publicado** (File > Publish to Roblox) e com **Game Settings > Security > Enable Studio Access to API Services** ligado. Use um place de teste, não o de produção: os dados são reais (store `EconomyV1`, chave `Player_<UserId>`).
+
+**Por que simular:** no Studio, `game.JobId` é vazio em toda sessão. Por isso, duas sessões do Studio (ou o Team Test, que é edição colaborativa e não dois servidores) não se enxergam como servidores diferentes. Abaixo, a trava de "outro servidor" é simulada escrevendo `SessionJobId = "outro-servidor"` no DataStore. Um teste com dois servidores de verdade só é possível no jogo publicado, entrando em dois servidores diferentes (opcional, ver 4.7).
+
+Use **Play solo (F5)**, que usa o seu UserId real (positivo). Snippets (Command Bar do **servidor**, ou no modo de edição antes do Play):
+
+```lua
+-- trava viva de outro servidor (troque 123 pelo seu UserId)
+local ds = game:GetService("DataStoreService"):GetDataStore("EconomyV1")
+ds:UpdateAsync("Player_123", function(old) old = old or {} old.SessionJobId = "outro-servidor" old.SessionTime = os.time() return old end)
+```
+```lua
+-- trava morta (sem heartbeat há mais de 300s)
+ds:UpdateAsync("Player_123", function(old) old = old or {} old.SessionJobId = "outro-servidor" old.SessionTime = os.time() - 301 return old end)
+```
+```lua
+-- ver o registro salvo
+print(game:GetService("HttpService"):JSONEncode(ds:GetAsync("Player_123")))
+```
+
+1. **Save e liberação normais.** Dê play, ganhe moedas (preparação, passo 6), pare (Stop). Rode o snippet "ver o registro" no modo de edição. **Esperado:** `Coins` atualizado, `Version` = 2, `Jail` = `{"Remaining":0,"Reason":""}`, e **sem** `SessionJobId` (trava liberada).
+2. **BindToClose.** Dê play, ganhe moedas e pare **sem** sair do jogador antes. **Esperado:** nenhuma linha `[DataStore] BindToClose terminou com N saves pendentes`. No próximo play, as moedas continuam lá.
+3. **Trava viva no login.** No modo de edição, rode o snippet "trava viva" e dê play. **Esperado:** o servidor tenta 5 vezes, com 5s entre elas (cerca de 25s), e expulsa com "Seus dados ainda estão em uso em outro servidor. Tente de novo em instantes." Nada é sobrescrito: o snippet "ver o registro" ainda mostra `SessionJobId = "outro-servidor"`.
+4. **Trava morta.** No modo de edição, rode o snippet "trava morta" e dê play. **Esperado:** entra normal, e o Output mostra `[DataStore] trava morta de 123 tomada de outro-servidor`.
+5. **Trava perdida durante o jogo.** Com o jogador dentro, rode o snippet "trava viva" na Command Bar do servidor e espere o autosave (até 60s). **Esperado:**
+   - expulsão com "Seus dados foram abertos em outro servidor. Entre de novo.";
+   - `[Security] event=session_lock_lost userId=123 context="DataStore" details="trava tomada por outro servidor; expulsando" ts=... count=1`.
+6. **Falha de DataStore.** Desligue "Enable Studio Access to API Services" e dê play. **Esperado:** linhas `[DataStore] tentativa N falhou: ...`, com espera crescente e aleatória entre elas (até 8s), e depois a expulsão "Falha ao carregar seus dados. Tente novamente." Religue no fim.
+7. *(opcional, jogo publicado)* Entre num servidor, e com outra conta ou um servidor privado entre em outro servidor com a mesma conta. **Esperado:** o segundo servidor espera cerca de 25s e expulsa, ou carrega depois que o primeiro salvar e liberar.
+
+**Limpeza:** remova a trava simulada:
+```lua
+ds:UpdateAsync("Player_123", function(old) if old then old.SessionJobId = nil old.SessionTime = nil end return old end)
+```
+
+## 5. Rate limit e validação dos remotes (#36, log do #38)
+
+**Local Server com 2 Players.** Rode na Command Bar do **Player1** (cliente). Os resultados aparecem no Output do Player1, e as linhas `[Security]` no do servidor.
+
+```lua
+local R = game.ReplicatedStorage.Remotes
+```
+
+1. **Rate limit por remote.** `BankGet` aceita 3 seguidas e recarrega 1 a cada 0,5s.
+   ```lua
+   for i = 1, 10 do print(i, R.BankGet:InvokeServer()) end
+   ```
+   **Esperado:** as primeiras devolvem `true <banco>`, e o resto `false RateLimited`. No servidor: `[Security] event=rate_limit userId=-1 context="BankGet" details="" ...`. Rate limit **não** gera strike.
+2. **Teto global (todos os remotes juntos).** São 20 seguidas, recarregando 10 por segundo.
+   ```lua
+   local n = 0 for _, name in {"BankGet","QuitJob","InteractClose","RideCancel","ClaimDaily"} do for i = 1, 6 do local ok, e = R[name]:InvokeServer() if e == "RateLimited" then n += 1 end end end print("recusadas", n)
+   ```
+   **Esperado:** várias recusadas com `RateLimited`, mesmo misturando remotes.
+3. **NaN, infinito, fração, tipo errado e argumento a mais.** Espere 1s entre as linhas por causa do rate limit.
+   ```lua
+   print(R.BankDeposit:InvokeServer(0/0))        -- false Invalid
+   print(R.BankDeposit:InvokeServer(math.huge))  -- false Invalid
+   print(R.BankDeposit:InvokeServer(10.5))       -- false Invalid
+   print(R.BankDeposit:InvokeServer("10"))       -- false Invalid
+   print(R.BankDeposit:InvokeServer(1e13))       -- false Invalid (teto 1e12)
+   print(R.BankGet:InvokeServer("extra"))        -- false Invalid (argumento a mais)
+   print(R.Pix:InvokeServer(2^60, 10))           -- false Invalid (UserId > 2^53)
+   print(R.VehicleAction:InvokeServer("explode"))-- false Invalid
+   ```
+   **Esperado** no servidor: `[Security] event=invalid_payload userId=-1 context="BankDeposit" details="argumento 1 inválido [strike N]" ...`. Cada chamada inválida é **1 strike**.
+4. **Chamada válida continua funcionando.** Abra o ATM e deposite pela UI. **Esperado:** funciona normalmente.
+5. *(distância)* A distância do assalto, da prisão e da reanimação é 8 studs (`RemoteGuard.Within`). Posição NaN/inf ou sem personagem é recusada. Pela Command Bar do servidor:
+   ```lua
+   local Rob = require(game.ServerScriptService.Economy.RobberyService)
+   print(Rob.Rob(game.Players.Player1, game.Players.Player2)) -- longe: false TooFar
+   ```
+
+**Limpeza:** espere 60s para os strikes zerarem, ou reinicie o teste antes da parte 7.
+
+## 6. Salto impossível e bloqueio de 5s (#37)
+
+**Local Server com 2 Players.** O servidor amostra a posição a cada 0,5s. Pulos, quedas, corrida com WalkSpeed do servidor e veículos (piso de 120 studs/s) são normais.
+
+1. **Andar, pular, cair e dirigir.** Ande, pule de um telhado e dirija a Bicicleta. **Esperado:** nenhuma linha `[Movement]`.
+2. **Teleporte pelo cliente (exploit).** Na Command Bar do **Player1**:
+   ```lua
+   local hrp = game.Players.LocalPlayer.Character.HumanoidRootPart
+   hrp.CFrame = hrp.CFrame + Vector3.new(300, 0, 0)
+   ```
+   **Esperado** no servidor: `[Movement] salto impossível de -1 (1 no total); ações físicas bloqueadas por 5s`. Nada de kick.
+3. **Ações bloqueadas por 5s.** Logo depois do passo 2, aproxime o Player1 do Player2 (até 8 studs) e rode na Command Bar do **servidor**:
+   ```lua
+   local Eco = game.ServerScriptService.Economy
+   print(require(Eco.RobberyService).Rob(game.Players.Player1, game.Players.Player2)) -- false MovementCheck
+   print(require(Eco.ArrestService).Arrest(game.Players.Player1, game.Players.Player2)) -- false MovementCheck
+   print(require(Eco.MedicService).Revive(game.Players.Player1, game.Players.Player2))   -- false MovementCheck
+   print(require(Eco.MovementService).IsBlocked(game.Players.Player1))                   -- true
+   ```
+   Depois de 5s, `IsBlocked` vira `false` e as ações voltam às regras normais. Por exemplo, `Rob` passa a dar `TargetEmpty`, `Cooldown` etc.
+4. **Teleporte do servidor sem liberação também conta.** Na Command Bar do **servidor**:
+   ```lua
+   local p = game.Players.Player1
+   p.Character:PivotTo(p.Character:GetPivot() + Vector3.new(0, 0, 300))
+   ```
+   **Esperado:** linha `[Movement]`. Só os teleportes da lista abaixo são liberados.
+5. **Teleportes liberados (sem `[Movement]`):**
+   - respawn: resete o personagem;
+   - casa: entre por uma porta de casa alugada/comprada;
+   - cadeia e soltura: prisão pela Command Bar do servidor, com o Player2 procurado e perto: `require(Eco.ArrestService).Arrest(game.Players.Player1, game.Players.Player2)`, com o Player1 policial;
+   - hospital: desmaio sem reanimação (#26);
+   - manual: `require(Eco.MovementService).AllowTeleport(p)` e logo em seguida o `PivotTo` do passo 4. **Esperado:** sem linha.
+6. **WalkSpeed alto setado pelo servidor.** Rode `game.Players.Player1.Character.Humanoid.WalkSpeed = 100` no **servidor** e corra. **Esperado:** sem `[Movement]`. Com o mesmo valor setado no **cliente** (não replica), correr gera `[Movement]`.
+
+**Observação:** o salto de movimento ainda não vai para o SecurityLog (só `warn [Movement]`). Isso fica para um follow-up.
+
+## 7. Telemetria, admin e expulsão (#38)
+
+1. **Não-admin.** Na Command Bar do **Player1**: `print(game.ReplicatedStorage.Remotes.SecurityQuery:InvokeServer())`. **Esperado:** imprime nada (nil). No servidor: `[Security] event=admin_denied userId=-1 context="SecurityQuery" details="" ...`.
+2. **Admin.** `AdminConfig.ADMIN_USER_IDS` vem vazio, e UserIds negativos do Local Server nunca são admin. Para testar:
+   - coloque **temporariamente** o seu UserId real em `src/server/Economy/AdminConfig.lua`, rode `./setup.sh build`, reabra e use **Play solo (F5)**;
+   - gere alguns eventos (passo 5.1);
+   - rode no cliente:
+     ```lua
+     local ok, data = game.ReplicatedStorage.Remotes.SecurityQuery:InvokeServer()
+     print(ok) for uid, ev in data do for name, n in ev do print(uid, name, n) end end
+     ```
+   **Esperado:** `true`, e depois linhas `<seuUserId> rate_limit N`. Com `InvokeServer(<UserId>)`, só aquele jogador. Os contadores zeram quando o jogador sai.
+3. **Expulsão com 30 strikes em 60s.** No Local Server, na Command Bar do **Player1**. O intervalo de 0,55s evita o rate limit, que não conta strike.
+   ```lua
+   local R = game.ReplicatedStorage.Remotes
+   for i = 1, 31 do print(i, R.BankDeposit:InvokeServer(-1)) task.wait(0.55) end
+   ```
+   **Esperado:**
+   - por volta da 30ª chamada (cerca de 17s), o Player1 é expulso com "Atividade suspeita detectada.";
+   - no servidor, **antes** da expulsão: `[Security] event=kick userId=-1 context="BankDeposit" details="30 strikes em 60s; último: argumento 1 inválido" ...`;
+   - com 29 strikes e espera de mais de 60s, a contagem recomeça e ninguém é expulso.
+
+**Limpeza:** volte `ADMIN_USER_IDS` para vazio (`git diff` limpo) e rode `./setup.sh build` de novo.
+
+## 8. Encerramento
+
+- [ ] `RIDE_TIMEOUT` voltou para 300, `VICTIM_REFUND` voltou para false e `ADMIN_USER_IDS` está vazio (`git diff` vazio).
+- [ ] Trava simulada removida do DataStore (limpeza da parte 4) e "Enable Studio Access to API Services" de volta como estava.
 - [ ] O Output do servidor não teve erros vermelhos (anote os que aparecerem).
 
 ## Checklist para reportar
@@ -114,10 +265,14 @@ Reinicie com **3 Players**: Player1 = A (ladrão), Player2 = B (vítima), Player
 Copie, marque e cole no PR (ou mande para o Grok Bot). Para cada falha, anote o passo, o que aconteceu e o trecho do Output.
 
 ```
-Branch/commit testado: feat/prisao @ <sha>
+Branch/commit testado: main @ <sha>
 Mototaxi (#18):   1[ ] 2[ ] 3[ ] 4[ ] 5[ ] 6[ ] 7[ ] 8[ ] 9[ ] 10[ ]
 Lojas/ATM (#20):  1[ ] 2[ ] 3[ ] 4[ ] 5[ ] 6[ ] 7[ ] 8[ ] 9[ ] 10[ ] 11[ ] 12[ ]
 Cadeia (#23):     1[ ] 2[ ] 3[ ] 4[ ] 5[ ] 6[ ] 7[ ] 8[ ] 9[ ] 10[ ] 11[ ]
+DataStore (#27):  1[ ] 2[ ] 3[ ] 4[ ] 5[ ] 6[ ] 7[ ]
+Remotes (#36):    1[ ] 2[ ] 3[ ] 4[ ] 5[ ]
+Movimento (#37):  1[ ] 2[ ] 3[ ] 4[ ] 5[ ] 6[ ]
+Telemetria (#38): 1[ ] 2[ ] 3[ ]
 Ajustes temporários revertidos: [ ]
 Erros no Output: ...
 Observações (valores, sensação de jogo): ...
