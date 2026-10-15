@@ -108,7 +108,7 @@ local function setup(n, start, rate, cap, latency, blind)
 	-- mesmo fluxo do saveAndRelease/doSave do DataStoreHandler (release = true)
 	local function saveOne(p, deadline)
 		out.starts[p] = (out.starts[p] or 0) + 1
-		local ok, err, n, why = Retry.Run(function()
+		local ok, err, tries, why = Retry.Run(function()
 			store:UpdateAsync("Player_" .. p.UserId, function(old)
 				return P.BuildSave(old, JOB, sim.t, p.coins, {}, nil, true)
 			end)
@@ -116,7 +116,7 @@ local function setup(n, start, rate, cap, latency, blind)
 		if not ok then
 			table.insert(out.records, {
 				at = sim.t,
-				entry = Sec.Entry("save_failed", p.UserId, "DataStore", Retry.FailureDetails(err, n, why)),
+				entry = Sec.Entry("save_failed", p.UserId, "DataStore", Retry.FailureDetails(err, tries, why)),
 			})
 		end
 		out.results[p] = { ok = ok, at = sim.t }
