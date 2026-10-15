@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Economy = require(script.Parent.EconomyService)
 local Data = require(script.Parent.DataStoreHandler)
 local RemoteUtil = require(script.Parent.RemoteUtil)
+local Afk = require(script.Parent.AfkService)
 local JobCatalog = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("JobCatalog"))
 
 local JobService = {}
@@ -18,6 +19,10 @@ local XP_PER_PAY = 10
 local jobChanged = RemoteUtil.Get("JobChanged", "RemoteEvent")
 local rateOk = RemoteUtil.Limiter(1)
 local vipCache = {}
+
+-- avisa outros serviços do servidor (ex.: RideService) quando o emprego muda
+local jobChangedSignal = Instance.new("BindableEvent")
+JobService.JobChanged = jobChangedSignal.Event
 
 -- times
 for name, color in pairs(JobCatalog.Teams) do
@@ -77,6 +82,7 @@ function JobService.SetJob(player, jobId)
 	extra.Job = jobId
 	applyTeam(player, jobId)
 	jobChanged:FireClient(player, jobId, jobId and extra.JobXP[jobId] or 0)
+	jobChangedSignal:Fire(player, jobId)
 	return true, jobId
 end
 
@@ -116,6 +122,7 @@ local function hookStation(part)
 		if not rateOk(player) then
 			return
 		end
+		Afk.MarkActive(player)
 		if JobService.GetJob(player) == jobId then
 			JobService.SetJob(player, nil)
 		else
@@ -148,7 +155,8 @@ task.spawn(function()
 		for _, p in Players:GetPlayers() do
 			local jobId = JobService.GetJob(p)
 			local job = jobId and JobCatalog.Get(jobId)
-			if job and not job.PayPerRide then
+			-- sem salário para quem está AFK (sem mover nem agir há AfkConfig.TIMEOUT)
+			if job and not job.PayPerRide and not Afk.IsAfk(p) then
 				task.spawn(pay, p, jobId, "job:" .. jobId)
 			end
 		end

@@ -58,6 +58,7 @@ local BAIRROS = {
 				{ Material = Enum.Material.Water }
 			)
 			tagged(b, "Quiosque_Mate", c + Vector3.new(-40, 1, 60), "JobStation", { JobId = "mate" })
+			tagged(b, "Entrega_Copacabana", c + Vector3.new(-60, 1, -40), "RideDropoff")
 			tagged(b, "Loja_Praia", c + Vector3.new(20, 1, 60), "Shop", { Category = "Comida" })
 			house(b, "copa_1", c + Vector3.new(60, 0, -40))
 		end,
@@ -70,6 +71,7 @@ local BAIRROS = {
 			tagged(b, "Hospital", c + Vector3.new(50, 1, 0), "JobStation", { JobId = "medico" })
 			tagged(b, "Banco_ATM", c + Vector3.new(0, 1, 40), "Shop", { Category = "Banco" })
 			tagged(b, "Spawn_Viatura", c + Vector3.new(-50, 1, 30), "VehicleSpawn")
+			tagged(b, "Entrega_Centro", c + Vector3.new(0, 1, -60), "RideDropoff")
 		end,
 	},
 	["Zona Norte"] = {
@@ -79,6 +81,7 @@ local BAIRROS = {
 			tagged(b, "Oficina", c + Vector3.new(-30, 1, 0), "JobStation", { JobId = "mecanico" })
 			tagged(b, "Mercado", c + Vector3.new(30, 1, 0), "Shop", { Category = "Comida" })
 			house(b, "zn_1", c + Vector3.new(0, 0, 60))
+			tagged(b, "Entrega_ZonaNorte", c + Vector3.new(-60, 1, -60), "RideDropoff")
 		end,
 	},
 	Morro = {
@@ -88,6 +91,7 @@ local BAIRROS = {
 			tagged(b, "Ponto_Mototaxi", c + Vector3.new(0, 1, 50), "JobStation", { JobId = "mototaxi" })
 			tagged(b, "Spawn_Moto", c + Vector3.new(15, 1, 50), "VehicleSpawn")
 			house(b, "morro_1", c + Vector3.new(-30, 0, -30))
+			tagged(b, "Entrega_Morro", c + Vector3.new(50, 1, -50), "RideDropoff")
 		end,
 	},
 	Barra = {
@@ -97,6 +101,7 @@ local BAIRROS = {
 			tagged(b, "Concessionaria", c + Vector3.new(0, 1, 0), "Shop", { Category = "Veiculo" })
 			tagged(b, "Spawn_Concessionaria", c + Vector3.new(20, 1, 0), "VehicleSpawn")
 			house(b, "barra_1", c + Vector3.new(0, 0, 70))
+			tagged(b, "Entrega_Barra", c + Vector3.new(-50, 1, -50), "RideDropoff")
 		end,
 	},
 }
