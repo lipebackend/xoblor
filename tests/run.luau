@@ -18,6 +18,7 @@ for _, name in
 		"RemoteGuard.spec",
 		"AtmLogic.spec",
 		"SecurityLogic.spec",
+		"AutosaveSchedule.spec",
 	}
 do
 	require("./" .. name)(T)
