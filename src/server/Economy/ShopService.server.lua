@@ -7,7 +7,7 @@ local RemoteUtil = require(script.Parent.RemoteUtil)
 local ShopPurchase = require(script.Parent.ShopPurchase)
 local Catalog = require(RS.Shared.ShopCatalog)
 
-RemoteUtil.BindFunction("RequestPurchase", 0.5, 2, ShopPurchase.Purchase)
+RemoteUtil.BindFunction("RequestPurchase", ShopPurchase.Purchase)
 
 -- reveste roupas compradas ao renascer (só se ainda tiver o emprego exigido)
 local function hookCharacter(p)

@@ -147,7 +147,7 @@ for _, part in CollectionService:GetTagged("JobStation") do
 end
 
 -- pedir demissão pelo menu
-RemoteUtil.BindFunction("QuitJob", 1, 1, function(player)
+RemoteUtil.BindFunction("QuitJob", function(player)
 	return JobService.SetJob(player, nil)
 end)
 
