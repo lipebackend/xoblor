@@ -16,6 +16,7 @@ for _, name in
 		"ProfileLogic.spec",
 		"RemoteGuard.spec",
 		"AtmLogic.spec",
+		"SecurityLogic.spec",
 	}
 do
 	require("./" .. name)(T)

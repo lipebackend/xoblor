@@ -1,4 +1,5 @@
 require(script.Parent.DataStoreHandler)
+require(script.Parent.AdminService) -- consulta de telemetria (SecurityQuery)
 require(script.Parent.BankService)
 require(script.Parent.JobService)
 require(script.Parent.HouseService)

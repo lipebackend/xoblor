@@ -2,6 +2,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Guard = require(script.Parent.RemoteGuard)
+local SecurityLog = require(script.Parent.SecurityLog)
 
 local RemoteUtil = {}
 local folder = ReplicatedStorage:WaitForChild("Remotes")
@@ -14,8 +15,9 @@ Players.PlayerRemoving:Connect(function(p)
 	strikes[p] = nil
 end)
 
--- Registra comportamento suspeito; expulsa quem insiste.
-function RemoteUtil.Flag(player, what)
+-- Registra comportamento suspeito (SecurityLog) e expulsa quem insiste (regra antiga, mantida).
+-- event: tipo em SecurityLogic.EVENTS (padrão "flag"); context: remote ou sistema.
+function RemoteUtil.Flag(player, what, event, context)
 	local now = os.clock()
 	local s = strikes[player]
 	if not s or now - s.since > STRIKE_WINDOW then
@@ -23,7 +25,7 @@ function RemoteUtil.Flag(player, what)
 		strikes[player] = s
 	end
 	s.n += 1
-	warn(("[Security] %s (%d): %s [%d]"):format(player.Name, player.UserId, what, s.n))
+	SecurityLog.Record(player, event or "flag", context or "", ("%s [strike %d]"):format(tostring(what), s.n))
 	if s.n >= MAX_STRIKES and player.Parent then
 		player:Kick("Atividade suspeita detectada.")
 	end
@@ -68,6 +70,7 @@ RemoteUtil.REMOTES = {
 	BankGet = { interval = 0.5, burst = 3, args = {} },
 	Pix = { interval = 1, burst = 2, args = { V.UserId, V.Money } },
 	Arrest = { interval = 0.5, burst = 1, args = { V.UserId } },
+	SecurityQuery = { interval = 1, burst = 2, args = { V.Optional(V.UserId) } }, -- só admins (SecurityLog)
 }
 -- Teto global por jogador, somando todos os remotes (anti-flood).
 RemoteUtil.GLOBAL = { interval = 0.1, burst = 20 }
@@ -101,11 +104,12 @@ function RemoteUtil.BindFunction(name, handler, override)
 	local rateOk = RemoteUtil.Limiter(interval, burst)
 	RemoteUtil.Get(name, "RemoteFunction").OnServerInvoke = function(player, ...)
 		if not globalOk(player) or not rateOk(player) then
+			SecurityLog.Record(player, "rate_limit", name, "")
 			return false, "RateLimited"
 		end
 		local valid, bad = Guard.Check(spec.args, select("#", ...), { ... })
 		if not valid then
-			RemoteUtil.Flag(player, ("%s: argumento %d inválido"):format(name, bad))
+			RemoteUtil.Flag(player, ("argumento %d inválido"):format(bad), "invalid_payload", name)
 			return false, "Invalid"
 		end
 		-- repassa todos os retornos do handler (ex.: BankDeposit devolve ok, banco, movido)
@@ -115,7 +119,7 @@ function RemoteUtil.BindFunction(name, handler, override)
 			return false, "ServerError"
 		end
 		if r[2] == false and r[3] == "Invalid" then
-			RemoteUtil.Flag(player, name .. ": payload inválido")
+			RemoteUtil.Flag(player, "payload inválido", "invalid_payload", name)
 		end
 		return table.unpack(r, 2, r.n)
 	end

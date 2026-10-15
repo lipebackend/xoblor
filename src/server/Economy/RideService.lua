@@ -111,7 +111,7 @@ local function tick(player, ride)
 	elseif status == "TooFast" then
 		-- chegou antes do tempo mínimo (teleporte/exploit): anula a corrida sem pagar
 		warn(("[Ride] %d chegou rápido demais (%.1fs)"):format(player.UserId, now - ride.StartedAt))
-		RemoteUtil.Flag(player, "Ride: chegada rápida demais")
+		RemoteUtil.Flag(player, "chegada rápida demais", "flag", "Ride")
 		finish(player, "TooFast")
 	elseif status == "ShortPath" then
 		-- chegou sem percorrer o caminho (teleporte e espera): anula sem pagar
@@ -123,7 +123,7 @@ local function tick(player, ride)
 				ride.Jumps or 0
 			)
 		)
-		RemoteUtil.Flag(player, "Ride: percurso curto")
+		RemoteUtil.Flag(player, "percurso curto", "flag", "Ride")
 		finish(player, "TooFast")
 	elseif status == "Arrived" then
 		ride.Paying = true -- PayRide pode ceder (checagem de VIP); evita pagar duas vezes

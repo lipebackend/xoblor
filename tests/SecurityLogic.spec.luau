@@ -1,0 +1,95 @@
+local S = require("../src/server/Economy/SecurityLogic")
+
+return function(T)
+	local describe, it, eq, truthy = T.describe, T.it, T.eq, T.truthy
+
+	describe("SecurityLogic.Entry/Format", function()
+		it("linha com campos em ordem fixa", function()
+			local e = S.Entry("rate_limit", 42, "Pix", "x", 1700000000)
+			eq(S.Format(e), '[Security] event=rate_limit userId=42 context="Pix" details="x" ts=1700000000')
+		end)
+		it("quebra de linha e aspas não quebram o formato", function()
+			local line = S.Format(S.Entry("flag", 1, 'a"b', "linha1\nlinha2", 0))
+			eq(line:find("\n"), nil)
+			truthy(line:find('context="a\'b"', 1, true) ~= nil)
+		end)
+		it("campos ausentes ou lixo viram vazio/0", function()
+			local e = S.Entry("flag", "x", nil, nil, nil)
+			eq(e.userId, 0)
+			eq(e.context, "")
+			eq(e.timestamp, 0)
+		end)
+		it("details longo é cortado", function()
+			local e = S.Entry("flag", 1, "", string.rep("a", 500), 0)
+			truthy(#e.details < 220)
+		end)
+		it("tipos de evento do jogo estão registrados", function()
+			for _, k in
+				{ "rate_limit", "invalid_payload", "movement_jump", "session_lock_lost", "flag", "admin_denied" }
+			do
+				eq(S.EVENTS[k], true, k)
+			end
+		end)
+	end)
+
+	describe("SecurityLogic contadores", function()
+		it("soma por jogador e por tipo", function()
+			local c = {}
+			eq(S.Count(c, 1, "rate_limit"), 1)
+			eq(S.Count(c, 1, "rate_limit"), 2)
+			eq(S.Count(c, 1, "flag"), 1)
+			eq(S.Count(c, 2, "rate_limit"), 1)
+			local snap = S.Snapshot(c, 1)
+			eq(snap.rate_limit, 2)
+			eq(snap.flag, 1)
+		end)
+		it("snapshot é cópia", function()
+			local c = {}
+			S.Count(c, 1, "flag")
+			local snap = S.Snapshot(c, 1)
+			snap.flag = 99
+			eq(S.Snapshot(c, 1).flag, 1)
+		end)
+		it("limpa ao sair; jogador sem eventos dá tabela vazia", function()
+			local c = {}
+			S.Count(c, 1, "flag")
+			S.Clear(c, 1)
+			eq(next(S.Snapshot(c, 1)), nil)
+			eq(next(S.Snapshot(c, 77)), nil)
+		end)
+	end)
+
+	describe("SecurityLogic.ShouldEmit (throttle do console)", function()
+		it("primeira emite, repetição na janela não, depois da janela sim", function()
+			local t = {}
+			eq(S.ShouldEmit(t, 1, "rate_limit", 0, 10), true)
+			eq(S.ShouldEmit(t, 1, "rate_limit", 5, 10), false)
+			eq(S.ShouldEmit(t, 1, "rate_limit", 10, 10), true)
+		end)
+		it("jogadores e eventos diferentes são independentes", function()
+			local t = {}
+			S.ShouldEmit(t, 1, "rate_limit", 0, 10)
+			eq(S.ShouldEmit(t, 2, "rate_limit", 0, 10), true)
+			eq(S.ShouldEmit(t, 1, "flag", 0, 10), true)
+		end)
+	end)
+
+	describe("SecurityLogic.IsAdmin", function()
+		local list = { 111, 222 }
+		it("UserId na lista", function()
+			eq(S.IsAdmin(list, 111), true)
+		end)
+		it("fora da lista, lista vazia ou nil", function()
+			eq(S.IsAdmin(list, 333), false)
+			eq(S.IsAdmin({}, 111), false)
+			eq(S.IsAdmin(nil, 111), false)
+		end)
+		it("tipos estranhos nunca são admin", function()
+			eq(S.IsAdmin(list, "111"), false)
+			eq(S.IsAdmin(list, 111.5), false)
+			eq(S.IsAdmin(list, 0 / 0), false)
+			eq(S.IsAdmin(list, -111), false)
+			eq(S.IsAdmin(list, nil), false)
+		end)
+	end)
+end
